@@ -1,0 +1,41 @@
+{
+  "name": "protocol-v2",
+  "version": "1.0.0",
+  "description": "Smart contracts for Protocol-v2 in Dec 2023, these includes but not limit to Factory, Data registry, Collection.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@gitlab.com/dare-dev/dare-protocol/smart-contracts/klaytn-hackathon-2023.git"
+  },
+  "keywords": [
+    "nft2.0",
+    "dynamic nft",
+    "composable nft",
+    "derivable nft"
+  ],
+  "author": "Alpha Block Co.Ltd.",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/dare-dev/dare-protocol/smart-contracts/protocol-v2/issues"
+  },
+  "homepage": "https://gitlab.com/dare-dev/dare-protocol/smart-contracts/protocol-v2#readme",
+  "devDependencies": {
+    "@doncesarts/tokenbound-contracts": "^0.3.1-beta.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^4.9.3",
+    "@openzeppelin/contracts-upgradeable": "^4.9.3",
+    "@openzeppelin/hardhat-upgrades": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "erc721a": "^4.2.3",
+    "erc721a-upgradeable": "^4.2.3",
+    "ethers": "^6.9.0",
+    "hardhat": "^2.19.1",
+    "hardhat-contract-sizer": "^2.10.0",
+    "keccak256": "^1.0.6",
+    "merkletreejs": "^0.3.11"
+  }
+}
