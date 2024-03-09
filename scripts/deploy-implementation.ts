@@ -30,7 +30,6 @@ async function deployAddonsManager() {
   console.log(`Deploy AddonsManager at address ${addOnsManager.target}`);
 
   await registerStrategy(await addOnsManager.getAddress());
-  console.log(`AddonsManager is fully configured at address ${addOnsManager.target}`);
 }
 
 async function upgradeAddonsManager(managerAddress: string) {
