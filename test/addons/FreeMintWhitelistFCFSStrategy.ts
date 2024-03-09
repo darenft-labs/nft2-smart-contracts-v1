@@ -25,6 +25,7 @@ const CAMPAIGN_NAME_1 = "Campaign 1";
 const FEE = "0.0001";
 const QUANTITY_1 = 3;
 const QUANTITY_2 = 5;
+const QUANTITY_3 = 8;
 const AMOUNT_1 = 1;
 const AMOUNT_2 = 2;
 const AMOUNT_3 = 5;
@@ -38,8 +39,23 @@ const COLLECTION_SETTINGS: CollectionSettings = {
 
 
 describe("FreeMintWhitelistFCFS", function(){
-  
-  // fixtures  
+  // fixtures 
+  async function deployAddonsAndConfigureWhitelist() {
+    const [owner, account2, account3] = await ethers.getSigners();
+    const { freeMintWhitelist } = await loadFixture(deployFixture);
+
+    const { rootHash, proofs } = buildTree(
+      [owner.address, account2.address, account3.address],
+      [QUANTITY_1, QUANTITY_2, QUANTITY_3]
+    )!;
+
+    await expect(freeMintWhitelist.updateMerkleRoot(rootHash)).to.not.be
+      .reverted;
+    expect(await freeMintWhitelist.merkleRoot()).to.equal(rootHash);
+
+    return { freeMintWhitelist, proofs };
+  }
+
   async function deployFixture() {
     const {collection, owner, account2} = await loadFixture(deployCollection);
     
@@ -348,6 +364,70 @@ describe("FreeMintWhitelistFCFS", function(){
       ).to.emit(freeMintWhitelist, "FreeMint")
         .withArgs(account2.address, QUANTITY_1);
     });
+  });
+
+  describe("ClaimableAmount", function(){
+    it("Should lookup failed due to invalid proof", async function(){
+      const [owner, account2, account3] = await ethers.getSigners();
+      const { freeMintWhitelist, proofs } = await loadFixture(deployAddonsAndConfigureWhitelist);
+
+      const leafData = createLeaf(account2.address, QUANTITY_2);
+      const tamperedProof = [ethers.id("foo")];      
+
+      await expect(
+        freeMintWhitelist.claimableAmount(leafData, tamperedProof, account2.address)
+      ).to.be.revertedWith("Invalid proof");
+    });
+
+    it("Should lookup failed due to unmatched wallet", async function(){
+      const [owner, account2, account3] = await ethers.getSigners();
+      const { freeMintWhitelist, proofs } = await loadFixture(deployAddonsAndConfigureWhitelist);
+
+      const leafData = createLeaf(account2.address, QUANTITY_2);
+
+      await expect(
+        freeMintWhitelist.claimableAmount(leafData, proofs[1], account3.address)
+      ).to.be.revertedWith("Receiver MUST be whitelisted wallet");
+    });
+
+    it("Should lookup successfully", async function(){
+      const [owner, account2, account3] = await ethers.getSigners();
+      const { freeMintWhitelist, proofs } = await loadFixture(deployAddonsAndConfigureWhitelist);
+
+      const leafData = createLeaf(account2.address, QUANTITY_2);
+
+      expect(await 
+        freeMintWhitelist.claimableAmount(leafData, proofs[1], account2.address)
+      ).to.equal(QUANTITY_2);
+
+      // claim
+      const amount = 1;
+      await expect(
+        freeMintWhitelist.connect(account2).freeMintWhitelist(leafData, proofs[1], amount, { value: ethers.parseEther(FEE) })
+      ).to.not.be.reverted;
+
+      expect(await 
+        freeMintWhitelist.claimableAmount(leafData, proofs[1], account2.address)
+      ).to.equal(QUANTITY_2 - amount);
+
+      await expect(
+        freeMintWhitelist.connect(account2).freeMintWhitelist(leafData, proofs[1], amount*2, { value: ethers.parseEther(FEE) })
+      ).to.not.be.reverted;
+
+      expect(await 
+        freeMintWhitelist.claimableAmount(leafData, proofs[1], account2.address)
+      ).to.equal(QUANTITY_2 - amount*3);
+
+      await expect(
+        freeMintWhitelist.connect(account2).freeMintWhitelist(leafData, proofs[1], amount*2, { value: ethers.parseEther(FEE) })
+      ).to.not.be.reverted;
+
+      expect(await 
+        freeMintWhitelist.claimableAmount(leafData, proofs[1], account2.address)
+      ).to.equal(0);
+
+    });
+
   });
 })
 
