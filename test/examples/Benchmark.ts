@@ -4,7 +4,7 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 import { accessControlErrorRegex, getRandomInt, getRandomIntInclusive, 
           mockVestingSchedules, convertPercentageToBasisPoint, CollectionSettings, encodeCollectionSettings, FreeMintKind } from "../helpers/utils";
@@ -43,21 +43,77 @@ describe("Benchmark", function(){
     const [owner, account1, account2] = await ethers.getSigners();
 
     // deploy supplementary contracts
-    const nftCollection = await ethers.deployContract("Collection");
-    const dataRegistry = await ethers.deployContract("DataRegistry");
+    const { dataRegistry, nftCollection } = await loadFixture(
+      deployDataRegistryAndCollectionFromFactory
+    );
     const erc20Token = await ethers.deployContract("USDT", [owner.address]);
 
     // deploy voucher contract
     const voucher = await ethers.deployContract("Voucher", [erc20Token.target, nftCollection.target, dataRegistry.target]);
 
     // grant roles
-    let settings : string = encodeCollectionSettings(COLLECTION_SETTINGS);
-    await nftCollection.initialize(voucher.target, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
-
-    await dataRegistry.initialize(voucher.target, ethers.ZeroAddress, DAPP_URI);
+    await nftCollection.grantRole(
+      await nftCollection.MINTER_ROLE(),
+      voucher.target
+    );
+    await dataRegistry.grantRole(
+      await dataRegistry.WRITER_ROLE(),
+      voucher.target
+    );
 
     return {voucher, erc20Token, nftCollection, dataRegistry, owner, account1, account2};
   };
+
+  async function deployDataRegistryAndCollectionFromFactory() {
+    const [owner, otherAccount] = await ethers.getSigners();
+
+    const erc721Impl = await ethers.deployContract("Collection");
+    const dataRegistryImpl = await ethers.deployContract("DataRegistryV2");
+    const derivedAccountImpl = await ethers.deployContract("DerivedAccount");
+    const erc721AImpl = await ethers.deployContract("Collection721A");
+
+    const Factory = await ethers.getContractFactory("Factory");
+    const factory = await upgrades.deployProxy(Factory, [
+      dataRegistryImpl.target,
+      erc721Impl.target,
+      derivedAccountImpl.target,
+      erc721AImpl.target,
+      dataRegistryImpl.target,
+    ]);
+
+    // initialization
+    const tx = await factory.createCollection(
+      COLLECTION_NAME,
+      COLLECTION_SYMBOL,
+      COLLECTION_SETTINGS,
+      0
+    );
+    await tx.wait();
+
+    const nftCollection = await ethers.getContractAt(
+      "Collection",
+      await factory.collectionOf(
+        owner.address,
+        COLLECTION_NAME,
+        COLLECTION_SYMBOL
+      )
+    );
+
+    const settings = {
+      disableComposable: false,
+      disableDerivable: false,
+    };
+    const tx2 = await factory.createDataRegistryV2(DAPP_URI, settings);
+    const receipt = await tx2.wait();
+
+    const registryAddress = await factory.dataRegistryOf(owner.address);
+    const dataRegistry = await ethers.getContractAt(
+      "DataRegistryV2",
+      registryAddress
+    );
+
+    return { dataRegistry, nftCollection };
+  }
 
   it("Should CREATE voucher with many schedules successfully", async function(){
     const {

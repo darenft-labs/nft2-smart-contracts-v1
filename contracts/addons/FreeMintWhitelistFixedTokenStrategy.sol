@@ -7,6 +7,8 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 
 import "../abstracts/FreeMintWhitelistAbstractContract.sol";
+
+import "../interfaces/IFactory.sol";
 import "../interfaces/addons/IFreeMintWhitelistStrategy.sol";
 import "../interfaces/addons/IAddonsManager.sol";
 
@@ -46,6 +48,7 @@ contract FreeMintWhitelistFixedTokenStrategy is FreeMintWhitelistAbstractContrac
 
     if (fee > 0) {
       require(msg.value >= fee, "Message value is insufficient");
+      (bool sent, bytes memory data) = feeReceiver.call{value: fee}("");
     }
 
     bytes32 leafHash = keccak256(leafData);
@@ -55,6 +58,7 @@ contract FreeMintWhitelistFixedTokenStrategy is FreeMintWhitelistAbstractContrac
     require(leaf.wallet == msg.sender, "Sender MUST be whitelisted wallet");
 
     require(!_isUsed[leafHash], "Token has already claimed");
+    
     _isUsed[leafHash] = true;
     IERC721Mintable(collection).safeMintWithTokenUri(msg.sender, leaf.tokenUri);
 

@@ -2,9 +2,10 @@
 pragma solidity ^0.8.9;
 
 interface IAddonsManager {
-  enum AddonsKind {
+  enum AddonsKind {    
     FREE_MINT_WHITELIST_FCFS,
-    FREE_MINT_WHITELIST_FIXED_TOKEN
+    FREE_MINT_WHITELIST_FIXED_TOKEN,
+    FREE_MINT_COMMUNITY
   }
 
   /**
@@ -20,16 +21,14 @@ interface IAddonsManager {
   function registerStrategy(address strategy, uint8 kind) external;
   
   /**
-   * @dev check if strategy implementation is whitelisted
+   * @dev Returns bool indicates that strategy implementation is whitelisted
    * @param strategy contract address
-   * @return boolean
    */
-  function isWhitelistedStrategy(address strategy) external returns (bool);
+  function isWhitelistedStrategy(address strategy) external view returns (bool);
 
   /**
-   * @dev lookup strategy by kind
-   * @param kind addons kind
-   * @return address
+   * @dev Returns address of strategy implementation
+   * @param kind addons kind   
    */
-  function strategyOfKind(uint8 kind) external returns (address);
+  function strategyOfKind(uint8 kind) external view returns (address);
 }

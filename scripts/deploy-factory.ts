@@ -1,23 +1,24 @@
 import { ethers, upgrades } from "hardhat";
+import { ADDRESS_LENGTH } from "./helper";
 
 async function main() {
-  if (process.env.DATA_REGISTRY == undefined || process.env.DATA_REGISTRY.length != 42) {
+  if (process.env.DATA_REGISTRY == undefined || process.env.DATA_REGISTRY.length != ADDRESS_LENGTH) {
     throw new Error("Missing argument: DATA_REGISTRY...");
   }
 
-  if (process.env.COLLECTION == undefined || process.env.COLLECTION.length != 42) {
+  if (process.env.COLLECTION == undefined || process.env.COLLECTION.length != ADDRESS_LENGTH) {
     throw new Error("Missing argument: COLLECTION...");
   }
 
-  if (process.env.DERIVED_ACCOUNT == undefined || process.env.DERIVED_ACCOUNT.length != 42) {
+  if (process.env.DERIVED_ACCOUNT == undefined || process.env.DERIVED_ACCOUNT.length != ADDRESS_LENGTH) {
     throw new Error("Missing argument: DERIVED_ACCOUNT...");
   }
 
-  if (process.env.COLLECTION_721A == undefined || process.env.COLLECTION_721A.length != 42) {
+  if (process.env.COLLECTION_721A == undefined || process.env.COLLECTION_721A.length != ADDRESS_LENGTH) {
     throw new Error("Missing argument: COLLECTION_721A...");
   }
 
-  if (process.env.DATA_REGISTRY_V2 == undefined || process.env.DATA_REGISTRY_V2.length != 42) {
+  if (process.env.DATA_REGISTRY_V2 == undefined || process.env.DATA_REGISTRY_V2.length != ADDRESS_LENGTH) {
     throw new Error("Missing argument: DATA_REGISTRY_V2...");
   }
 

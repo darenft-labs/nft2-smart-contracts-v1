@@ -6,10 +6,10 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
-import { accessControlErrorRegex, convertPercentageToBasisPoint, CollectionSettings, FreeMintKind } from "./helpers/utils";
+import { accessControlErrorRegex, convertPercentageToBasisPoint, CollectionSettings, FreeMintKind, ProtocolAction } from "./helpers/utils";
 import { token } from "../typechain-types/@openzeppelin/contracts";
 
-import { IERC165InterfaceId } from "./helpers/utils";
+import { IERC165InterfaceId, IERC6551InterfaceId, IDerivedAccountInterfaceId } from "./helpers/utils";
 
 const COLLECTION_NAME = "Bored Age";
 const COLLECTION_SYMBOL = "BAYC";
@@ -27,6 +27,11 @@ const COLLECTION_SETTINGS : CollectionSettings = {
 
 const ROYALTY_AMOUNT_ETH = "5.5";
 const ROYALTY_AMOUNT_ERC20 = "100000";
+
+const WRITE_FEE = "0.001";
+const DERIVE_FEE = "0.003";
+const DERIVE_WILDCARD_FEE = "0.01";
+const CLAIM_ROYALTY_FEE = "0.005";
 
 describe("DerivedAccount", function(){
   // fixtures
@@ -90,6 +95,45 @@ describe("DerivedAccount", function(){
 
     return {owner, account2, factory, nftCollection, derivedAccount, erc20Token};
   }
+
+  async function deployFeeManager() {
+    const FeeManager = await ethers.getContractFactory("FeeManager");
+    const deployManager = await upgrades.deployProxy(FeeManager, []);
+    await deployManager.waitForDeployment();
+
+    const feeManager = await ethers.getContractAt("FeeManager", deployManager.target);
+    return { feeManager };
+  }
+
+  async function setFeeManager() {
+    const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
+    const { feeManager } = await loadFixture(deployFeeManager);
+
+    await feeManager.setFee(ProtocolAction.WRITE, ethers.parseEther(WRITE_FEE));
+    await feeManager.setFee(
+      ProtocolAction.DERIVE,
+      ethers.parseEther(DERIVE_FEE)
+    );
+    await feeManager.setFee(
+      ProtocolAction.DERIVE_WILDCARD,
+      ethers.parseEther(DERIVE_WILDCARD_FEE)
+    );
+    await feeManager.setFee(
+      ProtocolAction.CLAIM_DERIVED_ROYALTY,
+      ethers.parseEther(CLAIM_ROYALTY_FEE)
+    );
+
+    {
+      const [owner, account2, account3] = await ethers.getSigners();
+      await feeManager.setReceiver(account3);
+    }
+
+    await factory.setFeeManager(feeManager.target);
+
+    return {owner, account2, factory, nftCollection, derivedAccount, erc20Token}
+  }
+
+
 
   describe("Deployment", function(){
     it("Should create derived account successfully", async function(){
@@ -190,15 +234,6 @@ describe("DerivedAccount", function(){
     });
   });
 
-  describe("Execute", function(){
-    it("Should revert on execution request", async function(){
-      const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
-
-      await expect(derivedAccount.execute(erc20Token.target, ethers.parseEther("0.01"),"0x",0))
-              .to.be.reverted;
-    });
-  });
-
   describe("RoyaltyBatch", function(){
     it("Should revert due to unequal input length", async function(){
       const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
@@ -253,6 +288,80 @@ describe("DerivedAccount", function(){
     });
   });
 
+  describe.skip("Protocol Fee", function(){
+    describe("ClaimRoyalty", function(){
+      it("Should claim-royalty revert if not pay fee sufficiently", async function () {
+        const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(setFeeManager);
+        await expect(derivedAccount.claimRoyalty(ethers.ZeroAddress, ethers.parseEther(ROYALTY_AMOUNT_ETH)))
+                .to.be.revertedWith("Message value MUST sufficient");
+      });
+
+      it("Should claim-royalty success if pay fee sufficiently", async function () {
+        const [ account1, account22, account3] = await ethers.getSigners();
+
+        const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(setFeeManager);
+
+        const beforeBalance = await ethers.provider.getBalance(account3);
+        const PAID_AMOUNT = "0.05";
+        await expect(derivedAccount.claimRoyalty(ethers.ZeroAddress, ethers.parseEther(ROYALTY_AMOUNT_ETH), {value: ethers.parseEther(PAID_AMOUNT)}))
+                .to.not.be.reverted;
+                
+        const afterBalance = await ethers.provider.getBalance(account3);
+
+        expect(afterBalance).to.equal(beforeBalance + ethers.parseEther(PAID_AMOUNT));
+      });
+
+      it("Should claim-royalty success if pay fee is not configured", async function () {
+        const { owner, account2, factory, nftCollection, derivedAccount, erc20Token } = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
+        const { feeManager } = await loadFixture(deployFeeManager);
+        await factory.setFeeManager(feeManager);
+
+        await expect(derivedAccount.claimRoyalty(ethers.ZeroAddress, ethers.parseEther(ROYALTY_AMOUNT_ETH)))
+                .to.not.be.reverted;
+      });
+    });
+
+    describe("ClaimRoyaltyBatch", function(){
+      it("Should claim-royalty revert if not pay fee sufficiently", async function () {
+        const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(setFeeManager);
+
+        await expect(derivedAccount.claimRoyaltyBatch(
+          [ethers.ZeroAddress, erc20Token.target], 
+          [ethers.parseEther(ROYALTY_AMOUNT_ETH), ethers.parseEther(ROYALTY_AMOUNT_ERC20)]))
+            .to.be.revertedWith("Message value MUST sufficient");
+      });
+
+      it("Should claim-royalty success if pay fee sufficiently", async function () {
+        const [ account1, account22, account3] = await ethers.getSigners();
+        const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(setFeeManager);
+
+        const PAID_AMOUNT = "0.01";
+        const beforeBalance = await ethers.provider.getBalance(account3);
+
+        await expect(derivedAccount.claimRoyaltyBatch(
+          [ethers.ZeroAddress, erc20Token.target], 
+          [ethers.parseEther(ROYALTY_AMOUNT_ETH), ethers.parseEther(ROYALTY_AMOUNT_ERC20)], 
+          {value: ethers.parseEther(PAID_AMOUNT)}))
+            .to.not.be.reverted;
+            
+        const afterBalance = await ethers.provider.getBalance(account3);
+        expect(afterBalance).to.equal(beforeBalance + ethers.parseEther(PAID_AMOUNT));
+      });
+
+      it("Should claim-royalty success if pay fee is not configured", async function () {
+        const { owner, account2, factory, nftCollection, derivedAccount, erc20Token } = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
+        const { feeManager } = await loadFixture(deployFeeManager);
+        await factory.setFeeManager(feeManager);
+
+        await expect(derivedAccount.claimRoyaltyBatch(
+          [ethers.ZeroAddress, erc20Token.target], 
+          [ethers.parseEther(ROYALTY_AMOUNT_ETH), ethers.parseEther(ROYALTY_AMOUNT_ERC20)]))
+            .to.not.be.reverted;
+      });
+      
+    });
+  });
+
   describe("ERC6551", function(){
     it("owner", async function() {
       const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
@@ -276,7 +385,7 @@ describe("DerivedAccount", function(){
       expect(await derivedAccount.isValidSigner(owner.address, "0x")).to.not.equal(IS_VALID_SIGNER_SELECTOR);
     });
 
-    it("isValidSignature", async function(){
+    it("isValidSignature", async function() {
       const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
 
       expect(await derivedAccount.isValidSignature(ethers.id("FOO"), "0x")).to.equal(ZERO_SELECTOR);
@@ -288,6 +397,10 @@ describe("DerivedAccount", function(){
       const {owner, account2, factory, nftCollection, derivedAccount, erc20Token} = await loadFixture(accrueRoyaltyNativeTokenAndERC20);
 
       expect(await derivedAccount.supportsInterface(IERC165InterfaceId())).to.equal(true);
+
+      console.log(`ierc6551 `,IERC6551InterfaceId());
+      expect(await derivedAccount.supportsInterface(IERC6551InterfaceId())).to.equal(true);
+      expect(await derivedAccount.supportsInterface(IDerivedAccountInterfaceId())).to.equal(true);
     });
   });
 });

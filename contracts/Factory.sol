@@ -12,15 +12,18 @@ import "./interfaces/IFactory.sol";
 import "./interfaces/IDynamic.sol";
 import "./interfaces/IComposable.sol";
 import "./interfaces/IDerivable.sol";
-import "./interfaces/IInitializableCollection.sol";
+import "./interfaces/addons/IAddonsManager.sol";
+
+import "./abstracts/AbstractCollection.sol";
+import "./abstracts/FreeMintWhitelistAbstractContract.sol";
+import "./addons/FreeMintCommunityStrategy.sol";
 
 import "./DataRegistry.sol";
 import "./DataRegistryV2.sol";
 import "./Collection.sol";
 import "./DerivedAccount.sol";
 import "./Collection721A.sol";
-import "./interfaces/addons/IAddonsManager.sol";
-import "./abstracts/FreeMintWhitelistAbstractContract.sol";
+
 
 contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
   mapping (address dapp => address registry) private _dataRegistries;
@@ -33,9 +36,10 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
   address public _derivedAccountImplementation;
   address public _erc721AImplementation;
   address public _dataRegistryV2Implementation;
-  address public _addOnsManager;
 
-  // upgradeable
+  address public _addOnsManager;
+  address public _feeManager;
+
   function initialize(address dataRegistryImpl, 
                         address collectionImpl, 
                         address derivedAccountImpl, 
@@ -55,16 +59,9 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
   }
 
   // ====================================================
-  //                  FEE MANAGEMENT
+  //              IMPLEMENTATION MANAGEMENT
   // ====================================================
-  function setFee(bytes32 action, uint256 fee) public onlyRole(DEFAULT_ADMIN_ROLE) returns (bool){
-    return false;
-  }
-
-  // ====================================================
-  //              IMPLEMENTATION MANAGEMENT  
-  // ====================================================
-  enum ImplementationKind { 
+  enum ImplementationKind {
     DATA_REGISTRY,
     COLLECTION,
     DERIVED_ACCOUNT,
@@ -73,6 +70,8 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
   }
 
   function updateImplementation(ImplementationKind kind, address implementation) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(implementation != address(0), "Implementation MUST be valid contract");
+
     if (kind == ImplementationKind.DATA_REGISTRY) {
       _dataRegistryImplementation = implementation;
     } else if (kind == ImplementationKind.COLLECTION) {
@@ -88,8 +87,18 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
     }
   }
 
-  function setAddonsManager(address manager) public onlyRole(DEFAULT_ADMIN_ROLE) {
-    _addOnsManager = manager;
+  // ====================================================
+  //                  FEE MANAGEMENT
+  // ====================================================
+  function setFeeManager(address manager) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(manager != address(0), "Manager MUST be valid contract");
+
+    _feeManager = manager;
+  }
+
+  function getFee(ProtocolAction action, uint256 times) public view returns (address receiver, uint256 fee) {
+    if (_feeManager == address(0)) return (address(0), 0);
+    return ((IFeeManager)(_feeManager).getReceiver(), (IFeeManager)(_feeManager).getFee(action)*times);
   }
 
   // ====================================================
@@ -141,13 +150,15 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
     bytes32 salt = keccak256(abi.encode(_msgSender(), name, symbol, settings));
 
     if (kind == CollectionKind.ERC721A) {
+      require(_erc721AImplementation != address(0), "ERC721A is unsupported");
+      
       collection = Clones.cloneDeterministic(_erc721AImplementation, salt);
     } else {
       // always fallback to standard
       collection = Clones.cloneDeterministic(_collectionImplementation, salt);
     }
 
-    IInitializableCollection(collection).initialize(_msgSender(), name, symbol, abi.encode(settings));
+    AbstractCollection(collection).initialize(_msgSender(), name, symbol, abi.encode(settings));
 
     _collectionRegistries[_msgSender()][hashKey] = collection;
 
@@ -158,6 +169,15 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
   function collectionOf(address owner, string calldata name, string calldata symbol) public view returns (address) {
     bytes32 hashKey = keccak256(abi.encode(name, symbol));
     return _collectionRegistries[owner][hashKey];
+  }
+
+  // ====================================================
+  //                COLLECTION ADD-ONS
+  // ====================================================
+  function setAddonsManager(address manager) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(manager != address(0), "Manager MUST be valid contract");
+    
+    _addOnsManager = manager;
   }
 
   function createAddons(address collection, uint8 kind, bytes calldata settingsData) public nonReentrant returns (address addons) {
@@ -175,6 +195,16 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
       FreeMintWhitelistAbstractContract(addons).initialize(_msgSender(), collection, settings.name, settings.startTime, settings.endTime, settings.fee);
 
       emit AddonsCreated(collection, kind, addons, salt, "");
+    } else if (kind == uint8(IAddonsManager.AddonsKind.FREE_MINT_COMMUNITY)) {
+      (FreeMintCommunityStrategy.Settings memory settings) = abi.decode(settingsData, (FreeMintCommunityStrategy.Settings));
+
+      bytes32 salt = keccak256(abi.encode(collection, kind, settings.name, settings.startTime, settings.endTime, settings.fee, settings.maxAllocation));
+      addons = Clones.cloneDeterministic(strategy, salt);
+
+      FreeMintCommunityStrategy(addons).initialize(_msgSender(), collection, settings.name, settings.startTime, settings.endTime, 
+                                                    settings.fee, settings.maxAllocation);
+
+      emit AddonsCreated(collection, kind, addons, salt, "");
     } else {
       revert("Kind is not supported");
     }
@@ -190,6 +220,9 @@ contract Factory is IFactory, ERC6551Registry, AccessControlUpgradeable, Reentra
 
     bytes32 salt = keccak256(abi.encode(_msgSender(), underlyingCollection, underlyingTokenId));
     derivedAccount = ERC6551Registry(address(this)).createAccount(_derivedAccountImplementation, salt, block.chainid, underlyingCollection, underlyingTokenId);
+
+    DerivedAccount(payable(derivedAccount)).initialize(address(this));
+
     _derivedRegistries[underlyingCollection][underlyingTokenId] = derivedAccount;
 
     emit DerivedAccountCreated(underlyingCollection, underlyingTokenId, derivedAccount);

@@ -11,11 +11,11 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
 import "./abstracts/AbstractCollection.sol";
-import "./interfaces/IFreeMintable.sol";
+
+import "./interfaces/IFactory.sol";
 import "./interfaces/ISemiTransferable.sol";
 
-contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgradeable, IFreeMintable, ISemiTransferable {
-  bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgradeable, ISemiTransferable {
   uint8 private constant MAX_BATCH_SIZE = 100;
 
   uint256 private _nextTokenId;
@@ -24,13 +24,10 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   mapping (uint256 tokenId => bool) private _locks;
   bytes32 public uriMerkleRoot;
 
-  modifier onFreemintWhitelist {
-    require(isFreeMintable == FreeMintableKind.FREE_MINT_WHITELIST, "Freemint whitelist MUST be enable");
-    _;
-  }
+  function initialize(address owner, string calldata name, string calldata symbol, bytes calldata settings) external override initializer {
+    factory = _msgSender();
+    _owner = owner;    
 
-  function initialize(address owner, string calldata name, string calldata symbol, bytes calldata settings) external initializer {    
-    _owner = owner;
     ERC721Upgradeable.__ERC721_init(name,symbol);
 
     CollectionSettings memory cSettings = abi.decode(settings, (CollectionSettings));
@@ -70,12 +67,6 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
 
   function _mintWithTokenUri(address to, string memory tokenUri) private returns (uint256) {
     uint256 tokenId = _nextTokenId++;
-    _safeMint(to, tokenId);
-    _tokenUris[tokenId] = tokenUri;
-    return tokenId;
-  }
-
-  function _mintWithTokenIdAndTokenUri(address to, uint256 tokenId, string memory tokenUri) private returns (uint256) {
     _safeMint(to, tokenId);
     _tokenUris[tokenId] = tokenUri;
     return tokenId;
@@ -145,20 +136,11 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   // ====================================================
   //                    FREE-MINTABLE
   // ====================================================
-  function freeMint(address to) external payable returns (uint256) {
-    assert(isFreeMintable == FreeMintableKind.FREE_MINT_COMMUNITY);
-    uint256 tokenId = _nextTokenId++;
-    _safeMint(to, tokenId);
-    return tokenId;
-  }
-
-  function updateUriMerkleRoot(bytes32 _merkleRoot) public onFreemintWhitelist onlyRole(DEFAULT_ADMIN_ROLE) {
-    assert(isFreeMintable == FreeMintableKind.FREE_MINT_WHITELIST);
+  function updateUriMerkleRoot(bytes32 _merkleRoot) public onFreemint onlyRole(DEFAULT_ADMIN_ROLE) {
     uriMerkleRoot = _merkleRoot;
   }
 
-  function claimTokenUri(uint256 tokenId, string calldata _tokenUri, bytes32[] calldata proof) public onFreemintWhitelist {
-    assert(isFreeMintable == FreeMintableKind.FREE_MINT_WHITELIST);
+  function claimTokenUri(uint256 tokenId, string calldata _tokenUri, bytes32[] calldata proof) public onFreemint {
     require(_msgSender() == ownerOf(tokenId), "Sender MUST be owner of token");
     
     bytes32 leaf = keccak256(abi.encode(tokenId,_tokenUri));
@@ -171,17 +153,17 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   // ====================================================
   //                    SEMI-TRANSFERABLE
   // ====================================================
-  function lock(uint256 tokenId) external {
-    assert(isSemiTransferable);
+  function lock(uint256 tokenId) external onSemiTransferable {
     require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
+
     _locks[tokenId] = true;
 
     emit Lock(_msgSender(), tokenId);
   }
 
-  function unlock(uint256 tokenId) external {
-    assert(isSemiTransferable);
+  function unlock(uint256 tokenId) external onSemiTransferable {
     require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
+
     _locks[tokenId] = false;
 
     emit Unlock(_msgSender(), tokenId);
@@ -203,8 +185,7 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   {
       return 
         super.supportsInterface(interfaceId) ||
-        interfaceId == 0x2a55205a || // IERC2981
-        interfaceId == 0xfa07ce1d || // IFreeMintable
-        interfaceId == 0x4a745cec; // ISemiTransferable
+        interfaceId == type(IERC2981).interfaceId ||
+        interfaceId == type(ISemiTransferable).interfaceId;
   }
 }

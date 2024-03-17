@@ -6,5 +6,5 @@ interface IDerivedAccount {
   event RoyaltyClaimed(address receiver, address requestToken, uint256 amount);
 
   // commands
-  function claimRoyalty(address requestToken, uint256 amount) external;
+  function claimRoyalty(address requestToken, uint256 amount) external payable;
 }

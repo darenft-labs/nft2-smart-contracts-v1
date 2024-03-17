@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import "../helpers/DataStruct.sol";
+
 /// @dev the ERC-165 identifier for this interface is `0xd63e236c`
 interface IDerivable {
-  struct DerivedToken {
-    address collection;
-    uint256 tokenId;
-    uint256 startTime;
-    uint256 endTime;
-  }
-
   /**
     * @dev The registry MUST emit the Derive event upon successful deriving NFT.
     */

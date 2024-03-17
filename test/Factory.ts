@@ -13,8 +13,14 @@ import {
   FreeMintKind,
   AddonsKind,
   ImplementationKind,
+  ProtocolAction,
 } from "./helpers/utils";
-import { abiEncodeAddonSettings, abiEncodeCampaignId } from "./helpers/abi-coder";
+import { 
+  abiEncodeAddonSettings, 
+  abiEncodeCampaignId, 
+  abiEncodeCommunityAddonSettings, 
+  abiEncodeCommunityCampaignId,
+} from "./helpers/abi-coder";
 
 import {
   Factory,
@@ -25,9 +31,11 @@ import { EventLog } from "ethers";
 const COLLECTION_NAME = "Bored Age";
 const COLLECTION_SYMBOL = "BAYC";
 const ROYALTY_RATE = 10; // in percentages
+const DERIVED_ROYALTY_RATE = 5 * 100;
 
 const CAMPAIGN_NAME_1 = "Campaign 1";
 const FEE = "0.0001";
+const MAX_ALLOCATION = 10;
 
 const COLLECTION_SETTINGS : CollectionSettings = {
   royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
@@ -37,6 +45,14 @@ const COLLECTION_SETTINGS : CollectionSettings = {
 };
 
 const DAPP_URI = "ipfs://dapp-uri";
+const KEY1 = "foo";
+const KEY2 = "bar";
+const KEY3 = "goo";
+
+const WRITE_FEE = "0.001";
+const DERIVE_FEE = "0.003";
+const DERIVE_WILDCARD_FEE = "0.01";
+const CLAIM_ROYALTY_FEE = "0.005";
 
 describe("Factory", function(){
   // fixtures
@@ -95,6 +111,7 @@ describe("Factory", function(){
   async function deployAddonsManager() {
     const freeMintWhitelistFCFS = await ethers.deployContract("FreeMintWhitelistFCFSStrategy");
     const freeMintWhitelistFixedToken = await ethers.deployContract("FreeMintWhitelistFixedTokenStrategy");
+    const freeMintCommunity = await ethers.deployContract("FreeMintCommunityStrategy");
 
     const AddonsManager = await ethers.getContractFactory("AddonsManager");
     const deployAddonsManager = await upgrades.deployProxy(AddonsManager, []);
@@ -103,6 +120,7 @@ describe("Factory", function(){
     const addOnsManager = await ethers.getContractAt("AddonsManager", deployAddonsManager.target);
     await addOnsManager.registerStrategy(freeMintWhitelistFCFS.target, AddonsKind.FREE_MINT_WHITELIST_FCFS);
     await addOnsManager.registerStrategy(freeMintWhitelistFixedToken, AddonsKind.FREE_MINT_WHITELIST_FIXED_TOKEN);
+    await addOnsManager.registerStrategy(freeMintCommunity, AddonsKind.FREE_MINT_COMMUNITY);
 
     return { addOnsManager };
   }
@@ -113,6 +131,59 @@ describe("Factory", function(){
     await factory.setAddonsManager(addOnsManager.target);
 
     return { collection, factory, owner, account2, addOnsManager }
+  }
+
+  async function deployFeeManager() {
+    const FeeManager = await ethers.getContractFactory("FeeManager");
+    const deployManager = await upgrades.deployProxy(FeeManager, []);
+    await deployManager.waitForDeployment();
+
+    const feeManager = await ethers.getContractAt("FeeManager", deployManager.target);
+    return { feeManager };
+  }
+
+  async function setFeeManager() {
+    const { collection, factory, owner, account2 } = await loadFixture(deployCollectionAndMint);
+    const { feeManager } = await loadFixture(deployFeeManager);
+
+    await feeManager.setFee(ProtocolAction.WRITE, ethers.parseEther(WRITE_FEE));
+    await feeManager.setFee(
+      ProtocolAction.DERIVE,
+      ethers.parseEther(DERIVE_FEE)
+    );
+    await feeManager.setFee(
+      ProtocolAction.DERIVE_WILDCARD,
+      ethers.parseEther(DERIVE_WILDCARD_FEE)
+    );
+    await feeManager.setFee(
+      ProtocolAction.CLAIM_DERIVED_ROYALTY,
+      ethers.parseEther(CLAIM_ROYALTY_FEE)
+    );
+
+    await feeManager.setReceiver(account2);
+
+    await factory.setFeeManager(feeManager.target);
+
+    return { collection, factory, owner, account2, feeManager }
+  }
+
+  async function mockData() {
+    const [owner, other] = await ethers.getSigners();
+    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+
+    let keys = [];
+    let values = [];
+
+    keys.push(ethers.id(KEY1));
+    values.push(abiCoder.encode(["address","uint256"], [other.address, 12345]));
+
+    keys.push(ethers.id(KEY2));
+    values.push(abiCoder.encode(["address","uint256","uint256"], [other.address, 12345, 56789]));
+
+    keys.push(ethers.id(KEY3));
+    values.push(abiCoder.encode(["address","address","uint256"], [owner.address, other.address, 56789]));
+
+    return {keys, values};
   }
 
   describe("Deployment", function() {
@@ -129,6 +200,13 @@ describe("Factory", function(){
 
       let kind = 0;
       await expect(factory.connect(account2).updateImplementation(kind, ethers.ZeroAddress)).to.be.reverted;
+    });
+
+    it("Should revert due to zero address implementation", async function(){
+      const {factory, owner, account2} = await loadFixture(deployFixture);      
+
+      await expect(factory.updateImplementation(ImplementationKind.DATA_REGISTRY, ethers.ZeroAddress))
+              .to.be.revertedWith("Implementation MUST be valid contract");
     });
 
     it("Should update implementation successfully", async function(){
@@ -149,7 +227,8 @@ describe("Factory", function(){
       await expect(factory.updateImplementation(ImplementationKind.ERC712A_COLLECTION, erc721A.target)).to.not.be.reverted;
       await expect(factory.updateImplementation(ImplementationKind.DATA_REGISTRY_V2, dataRegistryV2.target)).to.not.be.reverted;
 
-      await expect(factory.updateImplementation(ImplementationKind.DATA_REGISTRY_V2+1, ethers.ZeroAddress)).to.be.reverted;
+      await expect(factory.updateImplementation(ImplementationKind.DATA_REGISTRY_V2+1, dataRegistryV2.target))
+              .to.be.reverted;
 
       // after
       expect(await factory._dataRegistryImplementation()).to.equal(dataRegistry.target);
@@ -323,7 +402,7 @@ describe("Factory", function(){
       expect(await factory.dappURI(owner.address)).to.equal(DAPP_URI);
 
       const registryAddress = await factory.dataRegistryOf(owner.address);
-      const registry = (await ethers.getContractAt("DataRegistryV2", registryAddress)) as DataRegistryV2;
+      const registry = await ethers.getContractAt("DataRegistryV2", registryAddress);
       expect(await registry.dapp()).to.equal(owner.address);
       expect(await registry.uri()).to.equal(DAPP_URI);
       expect(await registry.disableComposable()).to.equal(false);
@@ -411,13 +490,24 @@ describe("Factory", function(){
                 .to.be.reverted;      
       });
 
+      it("Should set addons manager reverted due to zero address", async function(){
+        const { collection, factory, owner, account2 } = await loadFixture(
+          deployCollectionAndMint
+        );
+
+        const { addOnsManager } = await loadFixture(deployAddonsManager);
+
+        await expect(factory.setAddonsManager(ethers.ZeroAddress))
+                .to.be.revertedWith("Manager MUST be valid contract");
+      });
+
       it("Should set addons manager successfully", async function(){
         const { collection, factory } = await loadFixture(deployCollectionAndMint);
 
         const { addOnsManager } = await deployAddonsManager();
 
         // before
-        expect(await factory._addOnsManager()).to.not.equal(addOnsManager.target);
+        expect(await factory._addOnsManager()).to.equal(ethers.ZeroAddress);
 
         // doing
         await expect(factory.setAddonsManager(addOnsManager.target))
@@ -461,7 +551,7 @@ describe("Factory", function(){
         await expect(
           factory.createAddons(
             collection.target,
-            AddonsKind.FREE_MINT_WHITELIST_FIXED_TOKEN + 1,
+            AddonsKind.FREE_MINT_COMMUNITY + 1,
             settings
           )
         ).to.be.revertedWith("Strategy has not configured yet");
@@ -729,6 +819,258 @@ describe("Factory", function(){
         expect(await freeMintWhitelist.startTime()).to.equal(startTime);
         expect(await freeMintWhitelist.endTime()).to.equal(endTime);
         expect(await freeMintWhitelist.fee()).to.equal(ethers.parseEther(FEE));
+      });
+    });
+
+    describe("Freemint-Community", function(){
+      it("Should revert due to invalid time range", async function(){
+        const { collection, factory, owner, account2, addOnsManager } = await loadFixture(setAddonsManager);
+
+        const settings = abiEncodeCommunityAddonSettings(
+          CAMPAIGN_NAME_1,
+          await time.latest() + 7*24*3600,
+          await time.latest(),
+          ethers.parseEther(FEE),
+          MAX_ALLOCATION,
+        );
+
+        await expect(
+          factory.createAddons(
+            collection.target,
+            AddonsKind.FREE_MINT_COMMUNITY,
+            settings
+          )
+        ).to.be.revertedWith("Start time MUST be less than equal End time");
+      });
+
+      it("Should create freemint successfully", async function () {
+        const { collection, factory, owner, account2, addOnsManager } = await loadFixture(setAddonsManager);
+
+        const settings = abiEncodeCommunityAddonSettings(
+          CAMPAIGN_NAME_1,
+          await time.latest(),
+          await time.latest() + 7*24*3600,
+          ethers.parseEther(FEE),
+          MAX_ALLOCATION,
+        );
+
+        await expect(
+          factory.createAddons(
+            collection.target,
+            AddonsKind.FREE_MINT_COMMUNITY,
+            settings
+          )
+        ).to.not.be.reverted;
+      });
+
+      it("Should create freemint emit event properly", async function () {
+        const { collection, factory, owner, account2, addOnsManager } = await loadFixture(setAddonsManager);
+
+        const startTime = await time.latest();
+        const endTime = await time.latest() + 7*24*3600;
+        const settings = abiEncodeCommunityAddonSettings(
+          CAMPAIGN_NAME_1,
+          startTime,
+          endTime,
+          ethers.parseEther(FEE),
+          MAX_ALLOCATION
+        );
+
+        await expect(
+          factory.createAddons(
+            collection.target,
+            AddonsKind.FREE_MINT_COMMUNITY,
+            settings
+          )
+        ).to.emit(factory, "AddonsCreated")
+            .withArgs(
+              collection.target, 
+              AddonsKind.FREE_MINT_COMMUNITY, 
+              anyValue, 
+              abiEncodeCommunityCampaignId(
+                await collection.getAddress(),                
+                AddonsKind.FREE_MINT_COMMUNITY,
+                CAMPAIGN_NAME_1,
+                startTime,
+                endTime,
+                ethers.parseEther(FEE),
+                MAX_ALLOCATION,
+              ),
+              "0x"
+            );
+      });
+
+      it("Should created freemint FCFS configured properly", async function () {
+        const { collection, factory, owner, account2, addOnsManager } = await loadFixture(setAddonsManager);
+
+        const startTime = await time.latest();
+        const endTime = startTime + 30*24*3600;
+
+        const settings = abiEncodeCommunityAddonSettings(
+          CAMPAIGN_NAME_1,
+          startTime,
+          endTime,
+          ethers.parseEther(FEE),
+          MAX_ALLOCATION
+        );
+
+        const tx = await factory.createAddons(
+            collection.target,
+            AddonsKind.FREE_MINT_COMMUNITY,
+            settings
+          );
+        const result = await tx.wait();
+        //console.log(`logs`, result?.logs);
+
+        const kind = (result?.logs[2] as EventLog).args[1];
+        const addOnsAddress = (result?.logs[2] as EventLog).args[2];
+        
+        //console.log(`addons address`, addOnsAddress);
+        expect(addOnsAddress).to.be.properAddress;
+        expect(kind).to.equal(AddonsKind.FREE_MINT_COMMUNITY);
+
+        const freeMint = await ethers.getContractAt("FreeMintCommunityStrategy", addOnsAddress);
+        expect(await freeMint.collection()).to.equal(collection.target);
+        expect(await freeMint.startTime()).to.equal(startTime);
+        expect(await freeMint.endTime()).to.equal(endTime);
+        expect(await freeMint.fee()).to.equal(ethers.parseEther(FEE));
+      });
+
+      it("Should create freemint addons with undefined time successfully", async function () {
+        const { collection, factory, owner, account2, addOnsManager } = await loadFixture(setAddonsManager);
+
+        const settings = abiEncodeCommunityAddonSettings(
+          CAMPAIGN_NAME_1,
+          0,
+          0,
+          ethers.parseEther(FEE),
+          MAX_ALLOCATION
+        );
+
+        await expect(
+          factory.createAddons(
+            collection.target,
+            AddonsKind.FREE_MINT_COMMUNITY,
+            settings
+          )
+        ).to.not.be.reverted;
+      });
+
+      it("Should create freemint addons with zero fee successfully", async function () {
+        const { collection, factory, owner, account2, addOnsManager } = await loadFixture(setAddonsManager);
+
+        const startTime = await time.latest();
+        const endTime = startTime + 30*24*3600;
+        const settings = abiEncodeCommunityAddonSettings(
+          CAMPAIGN_NAME_1,
+          startTime,
+          endTime,
+          ethers.parseEther("0"),  
+          MAX_ALLOCATION        
+        );
+
+        await expect(
+          factory.createAddons(
+            collection.target,
+            AddonsKind.FREE_MINT_COMMUNITY,
+            settings
+          )
+        ).to.not.be.reverted;
+      });
+    });
+
+  });
+
+  describe("FeeManager", function(){
+    describe("SetFeeManager", function(){
+      it("Should set fee manager reverted due to unauthorized", async function(){
+        const { collection, factory, owner, account2 } = await loadFixture(deployCollectionAndMint);
+
+        const { feeManager } = await loadFixture(deployFeeManager);
+
+        await expect(factory.connect(account2).setFeeManager(feeManager.target))
+                .to.be.reverted;      
+      });
+
+      it("Should set fee manager reverted due to zero address", async function(){
+        const { collection, factory, owner, account2 } = await loadFixture(deployCollectionAndMint);
+
+        const { feeManager } = await loadFixture(deployFeeManager);
+
+        await expect(factory.setFeeManager(ethers.ZeroAddress))
+                .to.be.revertedWith("Manager MUST be valid contract");
+      });
+
+      it("Should set fee manager successfully", async function(){
+        const { collection, factory } = await loadFixture(deployCollectionAndMint);
+
+        const { feeManager } = await loadFixture(deployFeeManager);
+
+        // before
+        expect(await factory._feeManager()).to.equal(ethers.ZeroAddress);
+
+        // doing
+        await expect(factory.setFeeManager(feeManager.target))
+                .to.not.be.reverted;
+
+        // after
+        expect(await factory._feeManager()).to.equal(feeManager.target);
+      });
+    });
+
+    describe("Write Fee", function(){
+      it("Should write fee returns properly", async function(){
+        const { keys, values } = await loadFixture(mockData);
+        const { collection, factory, owner, account2, feeManager } = await loadFixture(setFeeManager);        
+        
+        expect(await factory._feeManager()).to.equal(feeManager.target);
+        const [ receiver, fee ] = await factory.getFee(ProtocolAction.WRITE, 1);
+        expect(receiver).to.equal(account2.address);
+        expect(fee).to.equal(ethers.parseEther(WRITE_FEE));
+      });
+    });
+
+    describe("Derive Fee", function(){
+      it("Should derive fee returns properly", async function(){
+        const { keys, values } = await loadFixture(mockData);
+        const { collection, factory, owner, account2, feeManager } = await loadFixture(setFeeManager);        
+        
+        expect(await factory._feeManager()).to.equal(feeManager.target);
+        const [ receiver, fee ] = await factory.getFee(ProtocolAction.DERIVE_WILDCARD, 1);
+        expect(receiver).to.equal(account2.address);
+        expect(fee).to.equal(ethers.parseEther(DERIVE_WILDCARD_FEE));
+      });
+    });
+
+    describe("Derive By Keys Fee", function () {
+      it("Should derive fee returns properly", async function () {
+        const { keys, values } = await loadFixture(mockData);
+        const { collection, factory, owner, account2, feeManager } =
+          await loadFixture(setFeeManager);
+
+        expect(await factory._feeManager()).to.equal(feeManager.target);
+        const [receiver, fee] = await factory.getFee(
+          ProtocolAction.DERIVE,
+          1
+        );
+        expect(receiver).to.equal(account2.address);
+        expect(fee).to.equal(ethers.parseEther(DERIVE_FEE));
+      });
+    });
+
+    describe("Claim-Royalty Fee", function () {
+      it("Should claim-royalty fee returns properly", async function () {
+        const { keys, values } = await loadFixture(mockData);
+        const { collection, factory, owner, account2, feeManager } =
+          await loadFixture(setFeeManager);
+
+        expect(await factory._feeManager()).to.equal(feeManager.target);
+        const [receiver, fee] = await factory.getFee(
+          ProtocolAction.CLAIM_DERIVED_ROYALTY,
+          1
+        );
+        expect(receiver).to.equal(account2.address);
+        expect(fee).to.equal(ethers.parseEther(CLAIM_ROYALTY_FEE));
       });
     });
   });

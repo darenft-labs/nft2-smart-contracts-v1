@@ -14,10 +14,9 @@ import "@openzeppelin/contracts/utils/Address.sol";
 
 import "./interfaces/IFactory.sol";
 import "./interfaces/IDynamic.sol";
-import "./interfaces/IComposable.sol";
 import "./interfaces/IDerivable.sol";
 
-contract DataRegistry is IDynamic, IComposable, IDerivable, AccessControlUpgradeable, 
+contract DataRegistry is IDynamic, IDerivable, AccessControlUpgradeable, 
                           ERC721Upgradeable, IERC721Receiver, IERC2981, 
                           ReentrancyGuardUpgradeable {
   /**
@@ -185,26 +184,6 @@ contract DataRegistry is IDynamic, IComposable, IDerivable, AccessControlUpgrade
   }
 
   // ====================================================
-  //                    COMPOSABLE
-  // ====================================================
-  function compose(Token calldata srcToken, Token calldata descToken, bytes32[] calldata keyNames) external returns (bool){
-    require(IERC721(srcToken.collection).ownerOf(srcToken.tokenId) == _msgSender(), "Sender MUST be owner of source token");
-    require(IERC721(descToken.collection).ownerOf(descToken.tokenId) == _msgSender(), "Sender MUST be owner of destination token");
-    require(srcToken.collection != address(this) && descToken.collection != address(this), "Derived token SHALL NOT be composable");
-
-    uint j;
-    while (j < keyNames.length) {
-      _registry[descToken.collection][descToken.tokenId][keyNames[j]] = _registry[srcToken.collection][srcToken.tokenId][keyNames[j]];
-      delete _registry[srcToken.collection][srcToken.tokenId][keyNames[j]];
-      j++;
-    }
-
-    emit Compose(srcToken.collection, srcToken.tokenId, descToken.collection, descToken.tokenId, keyNames);
-
-    return true;
-  }
-
-  // ====================================================
   //                    DERIVABLE
   // ====================================================
   function derive(address underlyingCollection, uint256 underlyingTokenId, uint256 startTime, uint256 endTime, uint256 royaltyRate) external nonReentrant returns (bool) {
@@ -313,9 +292,8 @@ contract DataRegistry is IDynamic, IComposable, IDerivable, AccessControlUpgrade
   {
     return 
       super.supportsInterface(interfaceId) ||
-      interfaceId == 0x2a55205a || // IERC2981      
-      interfaceId == 0xd212301b || // IDynamic
-      interfaceId == 0x17e6e974 || // IComposable
-      interfaceId == 0xd63e236c;   // IDerivable
+      interfaceId == type(IERC2981).interfaceId ||
+      interfaceId == type(IDynamic).interfaceId ||
+      interfaceId == type(IDerivable).interfaceId;
   }
 }
