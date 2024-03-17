@@ -7,7 +7,14 @@ import { expect } from "chai";
 import { LINEAR_VESTING_TYPE, STAGED_VESTING_TYPE, DAILY_LINEAR_TYPE, QUARTERLY_LINEAR_TYPE, UNVESTED_STATUS } from "../examples/Voucher";
 
 const IDYNAMIC_ABI = [
+  "write(address,uint256,bytes32,bytes)",
   "safeWrite(address,address,uint256,bytes32,bytes)",
+  "read(address,uint256,bytes32)",
+];
+
+const IDYNAMIC_V2_ABI = [
+  "write(address,uint256,bytes32,bytes)",
+  "writeBatch(address,uint256,uint256,bytes32,bytes)",
   "read(address,uint256,bytes32)",
 ];
 
@@ -25,6 +32,18 @@ const IDERIVABLE_ABI = [
   "isReclaimable(address,address,uint256)",
 ];
 
+const IDERIVABLE_V2_ABI = [
+  "derive(address,uint256,uint256,uint256,uint256)",
+  "deriveByKeys(address,uint256,uint256,uint256,uint256,bytes32[])",
+  "derivedOf(address,uint256)",
+  "derivedByKeyOf(address,uint256,bytes32)",
+  "underlyingOf(uint256)",
+  "isUsable(address,uint256)",
+  "isUsableByKey(address,uint256,bytes32)",
+  "isDerivable(address,uint256)",
+  "isDerivableByKey(address,uint256,bytes32)",
+];
+
 const IINSCRIPTABLE_ABI = [
   "inscribe(address,uint256,bytes32,bytes)",
 ];
@@ -37,6 +56,16 @@ const ISEMITRANSFERABLE_ABI = [
   "lock(uint256)",
   "unlock(uint256)",
   "isLocked(uint256)",
+];
+
+const IERC6551_ABI = [
+  "token()",
+  "state()",
+  "isValidSigner(address,bytes)",
+];
+
+const IDERIVED_ACCOUNT_ABI = [  
+  "claimRoyalty(address,uint256)",
 ];
 
 
@@ -107,6 +136,14 @@ export enum FreeMintKind {
 export enum AddonsKind {
   FREE_MINT_WHITELIST_FCFS,
   FREE_MINT_WHITELIST_FIXED_TOKEN,
+  FREE_MINT_COMMUNITY,
+}
+
+export enum ProtocolAction {
+  WRITE,
+  DERIVE,
+  DERIVE_WILDCARD,
+  CLAIM_DERIVED_ROYALTY
 }
 
 export type DataRegistrySettings = {
@@ -144,12 +181,20 @@ export function IDynamicInterfaceId() : string {
   return erc165InterfaceIdCalculator(IDYNAMIC_ABI);
 }
 
+export function IDynamicV2InterfaceId() : string {
+  return erc165InterfaceIdCalculator(IDYNAMIC_V2_ABI);
+}
+
 export function IComposableInterfaceId() : string {
   return erc165InterfaceIdCalculator(ICOMPOSABLE_ABI);
 }
 
 export function IDerivableInterfaceId() : string {
   return erc165InterfaceIdCalculator(IDERIVABLE_ABI);
+}
+
+export function IDerivableV2InterfaceId() : string {
+  return erc165InterfaceIdCalculator(IDERIVABLE_V2_ABI);
 }
 
 export function IInscriptableInterfaceId() : string {
@@ -162,6 +207,14 @@ export function IFreeMintableInterfaceId() : string {
 
 export function ISemiTransferableInterfaceId() : string {
   return erc165InterfaceIdCalculator(ISEMITRANSFERABLE_ABI);
+}
+
+export function IERC6551InterfaceId() : string {
+  return erc165InterfaceIdCalculator(IERC6551_ABI);
+}
+
+export function IDerivedAccountInterfaceId() : string {
+  return erc165InterfaceIdCalculator(IDERIVED_ACCOUNT_ABI);
 }
 
 export function IERC165InterfaceId() : string {

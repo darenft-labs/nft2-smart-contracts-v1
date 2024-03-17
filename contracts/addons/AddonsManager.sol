@@ -17,6 +17,8 @@ contract AddonsManager is IAddonsManager, AccessControlUpgradeable {
   }
 
   function registerStrategy(address strategy, uint8 kind) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(strategy != address(0), "Strategy implementation MUST be valid contract address");
+
     require(
         !_whitelistedStrategies.contains(strategy),
         "Strategy: Already whitelisted"

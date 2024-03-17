@@ -93,9 +93,10 @@ interface IFactory {
   function derivedAccountOf(address underlyingCollection, uint256 underlyingTokenId) external view returns (address);
 
   /**
-   * @dev set protocol fee
-   * @param action write, compose, derive
-   * @param fee amount
+   * @dev Returns fee of action in wei
+   * 
+   * @param action action kind
+   * @param times number of executions
    */
-  function setFee(bytes32 action, uint256 fee) external returns (bool);
+  function getFee(ProtocolAction action, uint256 times) external view returns (address, uint256);
 }

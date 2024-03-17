@@ -4,12 +4,19 @@ import { ADDRESS_LENGTH, ImplementationKind } from "./helper";
 enum Action {
   SET_ADDONS_MANAGER,
   UPDATE_IMPLEMENTATION,
+  SET_FEE_MANAGER,
 }
 
 async function setAddOnsManager(addOnsManager: string) {
   const factory = await ethers.getContractAt("Factory", process.env.FACTORY!);
   await factory.setAddonsManager(addOnsManager);
   console.log(`AddonsManager ${process.env.ADDONS_MANAGER} is set to factory ${process.env.FACTORY}`);
+}
+
+async function setFeeManager(feeManager: string) {
+  const factory = await ethers.getContractAt("Factory", process.env.FACTORY!);
+  await factory.setFeeManager(feeManager);
+  console.log(`FeeManager ${process.env.FEE_MANAGER} is set to factory ${process.env.FACTORY}`);
 }
 
 async function updateImplementation(kind: number, implementation: string) {
@@ -76,6 +83,13 @@ async function main() {
         throw new Error("Missing argument: IMPLEMENTATION...");
       }
       await updateImplementation(Number(process.env.KIND), process.env.IMPLEMENTATION);
+      break;
+    }
+    case Action.SET_FEE_MANAGER: {
+      if (process.env.FEE_MANAGER == undefined || process.env.FEE_MANAGER.length != ADDRESS_LENGTH) {
+        throw new Error("Missing argument: FEE_MANAGER...");
+      }
+      await setFeeManager(process.env.FEE_MANAGER);
       break;
     }
     default: {

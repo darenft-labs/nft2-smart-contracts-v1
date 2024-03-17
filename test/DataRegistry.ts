@@ -235,6 +235,14 @@ describe("DataRegistry", function(){
         expect(await dataRegistry.read(nftCollection.target, OTHER_TOKEN_ID, key)).to.equal(value);      
       });
 
+      it("Should write data successfully", async function(){
+        const {dataRegistry, nftCollection, owner, otherAccount} = await loadFixture(deployDataRegistryFixture);
+        const {key, value} = await loadFixture(mockData);
+  
+        expect(await dataRegistry.write(nftCollection.target, OTHER_TOKEN_ID, key, value)).to.not.be.reverted;
+        expect(await dataRegistry.read(nftCollection.target, OTHER_TOKEN_ID, key)).to.equal(value);      
+      });
+
       it("Should emit Write event upon success", async function(){
         const {dataRegistry, nftCollection, owner, otherAccount} = await loadFixture(deployDataRegistryFixture);
         const {key, value} = await loadFixture(mockData);
@@ -432,84 +440,6 @@ describe("DataRegistry", function(){
                 .to.be.revertedWith("Token MUST be usable at the moment");
       });
     });
-
-  });
-
-  describe("Composable", function(){
-    describe("Compose", function(){
-      it("Should revert due to unauthorized access - source token", async function(){
-        const {dataRegistry, nftCollection, owner, otherAccount} = await loadFixture(deployRegistryWithDefinedSchema);
-        const [ account1, account2, account3 ] = await ethers.getSigners();
-        
-        const srcToken = {
-          collection: nftCollection.target,
-          tokenId: 0,
-        };
-
-        const descToken = {
-          collection: nftCollection.target,
-          tokenId: 1,
-        }
-
-        const keys = [ethers.id(KEY1)];
-
-        await expect(dataRegistry.connect(account3).compose(srcToken, descToken, keys))
-                .to.be.revertedWith("Sender MUST be owner of source token");
-      });
-
-      it("Should revert due to unauthorized access - dest token", async function(){
-        const {dataRegistry, nftCollection, owner, otherAccount} = await loadFixture(deployRegistryWithDefinedSchema);
-        const [ account1, account2, account3 ] = await ethers.getSigners();
-        
-        const srcToken = {
-          collection: nftCollection.target,
-          tokenId: 0,
-        };
-
-        const descToken = {
-          collection: nftCollection.target,
-          tokenId: 1,
-        }
-
-        const keys = [ethers.id(KEY1)];
-
-        await expect(dataRegistry.compose(srcToken, descToken, keys))
-                .to.be.revertedWith("Sender MUST be owner of destination token");
-      });
-
-      it("Should compose successfully", async function(){
-        const {dataRegistry, nftCollection, owner, otherAccount, account3} = await loadFixture(deployRegistryWithDefinedSchema);
-        
-        const srcTokenId = 2;
-        const descTokenId = 3;
-
-        const {keys, values} = await loadFixture(mockComposedData);
-
-        await expect(dataRegistry.safeWrite(account3.address, nftCollection.target, srcTokenId, keys[0], values[0])).to.not.be.reverted;
-        await expect(dataRegistry.safeWrite(account3.address, nftCollection.target, descTokenId, keys[1], values[1])).to.not.be.reverted;
-
-        const srcToken = {
-          collection: nftCollection.target,
-          tokenId: srcTokenId,
-        };
-
-        const descToken = {
-          collection: nftCollection.target,
-          tokenId: descTokenId,
-        }
-
-        // before
-        expect(await dataRegistry.read(nftCollection.target, descTokenId, keys[0])).to.be.equal(EMPTY_BYTES);
-        expect(await dataRegistry.read(nftCollection.target, srcTokenId, keys[0])).to.be.equal(values[0]);
-
-        // do composing
-        await expect(dataRegistry.connect(account3).compose(srcToken, descToken, [keys[0]])).to.not.be.reverted;
-
-        // after
-        expect(await dataRegistry.read(nftCollection.target, descTokenId, keys[0])).to.be.equal(values[0]);
-        expect(await dataRegistry.read(nftCollection.target, srcTokenId, keys[0])).to.be.equal(EMPTY_BYTES);
-      });
-    })
   });
 
   describe("Derivable", function(){
@@ -663,46 +593,6 @@ describe("DataRegistry", function(){
         await time.increase(30*24*3600); // next 30 days
         await expect(dataRegistry.read(dataRegistry.target, tokenId, keys[1]))
                 .to.be.revertedWith("Token MUST be usable at the moment");
-      });
-    });
-      
-    describe("Compose", function(){
-      it("Should revert upon composition by derived", async function(){
-        const {dataRegistry, nftCollection, owner, otherAccount, account3} = await loadFixture(deployRegistryWithDefinedSchema);
-        
-        // write some data
-        const srcTokenId = 2;
-        const descTokenId = 3;
-
-        const {keys, values} = await loadFixture(mockComposedData);
-
-        await expect(dataRegistry.safeWrite(account3.address, nftCollection.target, srcTokenId, keys[0], values[0])).to.not.be.reverted;
-        await expect(dataRegistry.safeWrite(account3.address, nftCollection.target, descTokenId, keys[1], values[1])).to.not.be.reverted;
-
-        const srcToken = {
-          collection: nftCollection.target,
-          tokenId: srcTokenId,
-        };
-
-        const descToken = {
-          collection: nftCollection.target,
-          tokenId: descTokenId,
-        }
-
-        // derive some nfts
-        const startTime = await time.latest() + 24*3600; // start time is 1 day later than current block timestamp
-        await dataRegistry.connect(account3).derive(nftCollection.target, descTokenId, startTime, startTime + 7*24*3600, DERIVED_ROYALTY_RATE); // end time is 7 days later than start
-
-        const derivedToken = {
-          collection: dataRegistry.target,
-          tokenId: 1,
-        }
-
-        await expect(dataRegistry.connect(account3).compose(srcToken, derivedToken, [keys[0]]))
-                .to.be.revertedWith("Derived token SHALL NOT be composable");
-
-        await expect(dataRegistry.connect(account3).compose(derivedToken, descToken, [keys[0]]))
-                .to.be.revertedWith("Derived token SHALL NOT be composable");
       });
     });
 
@@ -880,8 +770,7 @@ describe("DataRegistry", function(){
 
       // nft2.0
       expect(await dataRegistry.supportsInterface(IDynamicInterfaceId())).to.equal(true);
-      expect(await dataRegistry.supportsInterface(IComposableInterfaceId())).to.equal(true);
-      expect(await dataRegistry.supportsInterface(IDerivableInterfaceId())).to.equal(true);      
+      expect(await dataRegistry.supportsInterface(IDerivableInterfaceId())).to.equal(true);
 
       // based
       expect(await dataRegistry.supportsInterface(IERC165InterfaceId())).to.equal(true);

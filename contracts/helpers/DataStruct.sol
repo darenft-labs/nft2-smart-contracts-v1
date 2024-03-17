@@ -12,6 +12,13 @@ enum CollectionKind {
   ERC721A
 }
 
+enum ProtocolAction {
+  WRITE,
+  DERIVE,
+  DERIVE_WILDCARD,
+  CLAIM_DERIVED_ROYALTY
+}
+
 struct CollectionSettings {
   uint96 royaltyRate;
   bool isSoulBound;
@@ -24,6 +31,11 @@ struct RoyaltySettings {
   uint96 rate;
 }
 
+struct Token {
+  address collection;
+  uint256 tokenId;
+}
+
 struct TokenRange {
   uint256 start;
   uint256 end;
@@ -32,4 +44,19 @@ struct TokenRange {
 struct DataRegistrySettings {
   bool disableComposable;
   bool disableDerivable;
+}
+
+struct DerivedToken {
+  address collection;
+  uint256 tokenId;
+  uint256 startTime;
+  uint256 endTime;
+}
+
+struct FreemintCampaignSettings {
+  string name;
+  uint256 startTime;
+  uint256 endTime;
+  uint256 fee;
+  address feeReceiver;
 }

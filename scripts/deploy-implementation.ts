@@ -3,22 +3,39 @@ import { AddonsManager, FreeMintWhitelistFCFSStrategy, FreeMintWhitelistFixedTok
 import { ADDRESS_LENGTH, ImplementationKind, AddonsKind } from "./helper";
 
 
-async function registerStrategy(managerAddress: string) {
+async function registerStrategy(managerAddress: string, kind: AddonsKind) {
     const addOnsManager = await ethers.getContractAt("AddonsManager", managerAddress);
 
-    const freeMintWhitelistFCFS = await ethers.deployContract("FreeMintWhitelistFCFSStrategy");
-    console.log(`Deploy FreeMintWhitelistFCFS strategy at address ${freeMintWhitelistFCFS.target}`);
+    switch (kind) {
+      case AddonsKind.FREE_MINT_WHITELIST_FCFS: {
+        const freeMintWhitelistFCFS = await ethers.deployContract("FreeMintWhitelistFCFSStrategy");
+        console.log(`Deploy FreeMintWhitelistFCFS strategy at address ${freeMintWhitelistFCFS.target}`);
 
-    const freeMintWhitelistFixedToken = await ethers.deployContract("FreeMintWhitelistFixedTokenStrategy");
-    console.log(`Deploy FreeMintWhitelistFixedToken strategy at address ${freeMintWhitelistFixedToken.target}`);
+        await addOnsManager.registerStrategy(freeMintWhitelistFCFS.target, AddonsKind.FREE_MINT_WHITELIST_FCFS);
+        console.log(`Register FreeMintWhitelistFCFS strategy to manager ${managerAddress}...`);
+        break;
+      }
+      case AddonsKind.FREE_MINT_WHITELIST_FIXED_TOKEN: {
+        const freeMintWhitelistFixedToken = await ethers.deployContract("FreeMintWhitelistFixedTokenStrategy");
+        console.log(`Deploy FreeMintWhitelistFixedToken strategy at address ${freeMintWhitelistFixedToken.target}`);
 
-    await addOnsManager.registerStrategy(freeMintWhitelistFCFS.target, AddonsKind.FREE_MINT_WHITELIST_FCFS);
-    console.log(`Register FreeMintWhitelistFCFS strategy to manager...`);
-  
-    await addOnsManager.registerStrategy(freeMintWhitelistFixedToken.target, AddonsKind.FREE_MINT_WHITELIST_FIXED_TOKEN);
-    console.log(`Register FreeMintWhitelistFixedToken strategy to manager...`);
+        await addOnsManager.registerStrategy(freeMintWhitelistFixedToken.target, AddonsKind.FREE_MINT_WHITELIST_FIXED_TOKEN);
+        console.log(`Register FreeMintWhitelistFixedToken strategy to manager ${managerAddress}...`);
+        break;
+      }
+      case AddonsKind.FREE_MINT_COMMUNITY: {
+        const freeMintCommunity = await ethers.deployContract("FreeMintCommunityStrategy");
+        console.log(`Deploy FreeMintCommunity strategy at address ${freeMintCommunity.target}`);
 
-    console.log(`AddonsManager is fully configured at address ${managerAddress}`);
+        await addOnsManager.registerStrategy(freeMintCommunity.target, AddonsKind.FREE_MINT_COMMUNITY);
+      console.log(`Register FreeMintCommunity strategy to manager ${managerAddress}...`);
+        break;
+      }
+      default: {
+        throw new Error(`Kind ${kind} is not supported`);
+        break;
+      }
+    }
   }
 
 async function deployAddonsManager() {
@@ -28,8 +45,6 @@ async function deployAddonsManager() {
 
   const addOnsManager = await ethers.getContractAt("AddonsManager", deployAddonsManager.target);
   console.log(`Deploy AddonsManager at address ${addOnsManager.target}`);
-
-  await registerStrategy(await addOnsManager.getAddress());
 }
 
 async function upgradeAddonsManager(managerAddress: string) {
@@ -37,6 +52,15 @@ async function upgradeAddonsManager(managerAddress: string) {
   const addOnsManager = await upgrades.upgradeProxy(managerAddress, AddonsManager);
   
   console.log(`AddonsManager is upgraded at address ${managerAddress}`);
+}
+
+async function deployFeeManager() {
+  const FeeManager = await ethers.getContractFactory("FeeManager");
+  const deployManager = await upgrades.deployProxy(FeeManager, []);
+  await deployManager.waitForDeployment();
+
+  const feeManager = await ethers.getContractAt("FeeManager", deployManager.target);
+  console.log(`Deploy FeeManager at address ${feeManager.target}`);
 }
 
 async function main() {
@@ -85,8 +109,15 @@ async function main() {
     case ImplementationKind.UPDATE_ADDONS_STRATEGY: {
       if (process.env.ADDONS_MANAGER == undefined || process.env.ADDONS_MANAGER.length != ADDRESS_LENGTH) {
         throw new Error("Missing argument: ADDONS_MANAGER...");
+      }  
+      if (process.env.KIND == undefined) {
+        throw new Error("Missing argument: KIND...");
       }      
-      await registerStrategy(process.env.ADDONS_MANAGER);
+      await registerStrategy(process.env.ADDONS_MANAGER, Number(process.env.KIND));
+      break;
+    }
+    case ImplementationKind.FEE_MANAGER: {
+      await deployFeeManager();
       break;
     }
     default: {

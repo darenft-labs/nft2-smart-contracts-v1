@@ -1,8 +1,8 @@
 # NFT2.0 Protocol
-Smart contracts for NFT2.0 Protocol. The universal WEB3 protocol for dynamic NFT, which achieves novel properties:
-> - Dynamic, metadata stored onchain, immutable and ready for smart contracts logic
-> - Composable, be able to split or merge NFT value
-> - Derivable, derive child (derivative) NFT from parent (underlying) NFT to use or rent out
+Smart contracts for NFT2.0 Protocol, the universal WEB3 protocol for dynamic NFT, which achieves novel properties:
+> - Dynamic - NFT data is stored onchain, hence immutable and ready for smart contracts logic.
+> - Composable - ability to split or merge NFT values.
+> - Derivable - ability to derive child (derivative) NFT from parent (underlying) NFT to use or rent out.
 
 ## Prerequisites
 - [NodeJS v18.x](https://nodejs.org/en)
@@ -15,9 +15,9 @@ Smart contracts for NFT2.0 Protocol. The universal WEB3 protocol for dynamic NFT
 - Main classes:
 > 1. Factory: in charge of creating Data registries, NFT collections, Derived accounts, ERC6551 accounts. It also manages a self-registry in order to lookup all aforementioned entities.
 > 2. DataRegistry: the smart contract template of data registry, which is used by the factory. The data registry would implement protocol interfaces: IDynamic, IComposable, IDerivables. The data registry is also in charge of creating the derived account, which essentially is a Token-bound-account (ERC6551) of underlying NFT, where the royalty commission will be accrued.
-> 3. Collection: the smart contract template of NFT collection, which is used by the factory. The NFT collection would implement standard ERC721 interface and other extensions, included but not limited to: ERC2981 (royalty), Soul Bound Token, Free mint, etc. Collection also implements our proprietary interface Semi-Transferable.
+> 3. Collection: the smart contract template of NFT collection, which is used by the factory. The NFT collection would implement standard ERC721 interface and other extensions, which is included but not limited to: ERC2981 (royalty), Soul Bound Token, Free mint, etc. Collection also implements our proprietary interface Semi-Transferable.
 > 4. DerivedAccount: Token bound account (ERC6551) for underlying NFT, which accrues royalty commission of derived NFT. We intentionally divert the royalty commission to derived account, in order to properly distribute royalty to both NFT owner (derived-NFT creator) and NFT creator. Anyone can claim royalty on derived account in a permissionless manner, provided that he pays sufficient gas, in this case, royalty commission will be distributed pro-rata to NFT owner and NFT creator.
-> 5. Addons: addons for ERC721 collections, which is included but not limited to: Whitelisted freemint, etc
+> 5. Addons: addons for ERC721 collections, which is included but not limited to: Whitelisted freemint, etc.
 
 ## Setup
 - Install npm dependencies
@@ -89,9 +89,34 @@ $ IMPLEMENTATION=<kind> npx hardhat run ./scripts/deploy-implementation.ts --net
 >   - 4: DataRegistryV2
 >   - 5: Deploy AddonsManager
 >   - 6: Upgrade AddonsManager
->   - 7: Update addons strategy
+>   - 7: Deploy & Register addons strategy
 >
 > *--network can be omitted in case deploy in-memory*
+
+- Deploy AddonsManager
+>   - Deploy AddonsManager
+```bash
+$ IMPLEMENTATION=6 npx hardhat run scripts/deploy-implementation.ts
+```
+
+>   - Upgrade AddonsManager
+```bash
+$ ADDONS_MANAGER=<address> \
+IMPLEMENTATION=6 npx hardhat run scripts/deploy-implementation.ts
+```
+
+>   - Deploy & register strategy
+```bash
+$ ADDONS_MANAGER=<address> \
+KIND=<addons-kind> \
+IMPLEMENTATION=7 npx hardhat run scripts/deploy-implementation.ts
+```
+
+>     addons-kind is one of
+>     - 0: Freemint whitelist FCFS
+>     - 1: Freemint whitelist Fixed-token
+>     - 2: Freemint whitelist Community
+
 
 - Deploy factory
 ```bash
@@ -100,7 +125,25 @@ COLLECTION="<address>" \
 DERIVED_ACCOUNT="<address>" \
 COLLECTION_721A="<address>" \
 DATA_REGISTRY_V2="<address>" \
-npx hardhat run ./script/deploy-factory.ts --network <chain-name>
+npx hardhat run scripts/deploy-factory.ts --network <chain-name>
+```
+
+- Config factory
+>   - Set implementation to factory
+```bash
+$ FACTORY=<address> \
+ACTION=1 \
+KIND=<implementation-kind> \
+IMPLEMENTATION=<new-implementation-address> \
+npx hardhat run scripts/upgrade-factory.ts --network <chain-name>
+```
+>     where KIND is implementation kind, defined above
+
+>   - Set AddonsManager
+```bash
+$ FACTORY=<address> \
+ACTION=0 \
+npx hardhat run scripts/upgrade-factory.ts
 ```
 
 ## Verify contract
@@ -130,7 +173,7 @@ $ npx hardhat verify <new-implementation-address> --network <chain-name>
 
 - Upgrade factory contract
 ```bash
-$ FACTORY_ADDRESS="<address>" \
+$ FACTORY="<address>" \
 npx hardhat run ./scripts/upgrade-factory.ts --network <chain-name>
 ```
 

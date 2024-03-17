@@ -7,6 +7,8 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 
 import "../abstracts/FreeMintWhitelistAbstractContract.sol";
+
+import "../interfaces/IFactory.sol";
 import "../interfaces/addons/IFreeMintWhitelistStrategy.sol";
 import "../interfaces/addons/IAddonsManager.sol";
 
@@ -43,12 +45,14 @@ contract FreeMintWhitelistFCFSStrategy is FreeMintWhitelistAbstractContract, Ree
 
     if (fee > 0) {
       require(msg.value >= fee, "Message value is insufficient");
+      (bool sent, bytes memory data) = feeReceiver.call{value: fee}("");
     }
 
     Leaf memory leaf = _verifyProof(leafData, proof);
     require(leaf.wallet == msg.sender, "Sender MUST be whitelisted wallet");
     
     require(_totalMinted[msg.sender]+amount <= leaf.quantity, "Can not claim more than allocation");
+    
     _totalMinted[msg.sender] += amount;
     IERC721Mintable(collection).safeMintBatch(msg.sender, amount);
 

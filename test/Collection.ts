@@ -304,62 +304,7 @@ describe("Collection", function(){
     });
   });
 
-  describe("FreeMint-Community", function(){
-    it("Should free-mint will be reverted if disable", async function(){
-      const {collection, owner, account2} = await loadFixture(deployCollection);
-
-      let settings : string = encodeCollectionSettings({
-        royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
-        isSoulBound: false,
-        isFreeMintable: FreeMintKind.NON_FREE_MINT,
-        isSemiTransferable: false,
-      });
-      await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
-
-      await expect(collection.freeMint(owner.address)).to.be.reverted;
-    });
-
-    it("Should free-mint will be succeeded if enable", async function(){
-      const {collection, owner, account2} = await loadFixture(deployCollection);
-
-      let settings : string = encodeCollectionSettings({
-        royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
-        isSoulBound: false,
-        isFreeMintable: FreeMintKind.FREE_MINT_COMMUNITY,
-        isSemiTransferable: false,
-      });
-      await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
-
-      await expect(collection.connect(account2).freeMint(owner.address)).to.not.be.reverted;
-      const tokenId = 0;
-      expect(await collection.ownerOf(tokenId)).to.equal(owner.address);
-    });
-
-    it("Should free-mint addons is visible", async function(){
-      const {collection, owner, account2} = await loadFixture(deployCollection);
-
-      let settings : string = encodeCollectionSettings({
-        royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
-        isSoulBound: false,
-        isFreeMintable: FreeMintKind.NON_FREE_MINT,
-        isSemiTransferable: false,
-      });
-      await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
-      expect(await collection.isFreeMintable()).to.equal(FreeMintKind.NON_FREE_MINT);
-
-      const collection2 = await ethers.deployContract("Collection");
-      let settings2 : string = encodeCollectionSettings({
-        royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
-        isSoulBound: false,
-        isFreeMintable: FreeMintKind.FREE_MINT_COMMUNITY,
-        isSemiTransferable: false,
-      });
-      await collection2.initialize(owner.address, `${COLLECTION_NAME}-1`, `${COLLECTION_SYMBOL}-1`, settings2);
-      expect(await collection2.isFreeMintable()).to.equal(FreeMintKind.FREE_MINT_COMMUNITY);
-    });
-  });
-
-  describe("FreeMint-Whitelist", function(){
+  describe("URI MerkleTree", function(){
     it("Should update root reverted if disable", async function(){
       const {collection, owner, account2} = await loadFixture(deployCollection);
 
@@ -658,11 +603,7 @@ describe("Collection", function(){
     it("Should determine ERC165 interfaceId properly", async function(){
       const {collection, owner, account2} = await loadFixture(deployCollection);
 
-      //console.log(`ifreemintable ${IFreeMintableInterfaceId()}`);
-      //console.log(`isemitransfer ${ISemiTransferableInterfaceId()}`);
-
       // add-ons
-      expect(await collection.supportsInterface(IFreeMintableInterfaceId())).to.equal(true);
       expect(await collection.supportsInterface(ISemiTransferableInterfaceId())).to.equal(true);
 
       // based

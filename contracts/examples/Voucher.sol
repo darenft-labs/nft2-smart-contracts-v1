@@ -8,9 +8,9 @@ import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "../interfaces/IDynamic.sol";
+import "../interfaces/IDynamicV2.sol";
 import "../../contracts/Collection.sol";
-import "../../contracts/DataRegistry.sol";
+import "../../contracts/DataRegistryV2.sol";
 
 contract Voucher is Ownable, IERC721Receiver {
   event VoucherCreated(address collection, uint256 tokenId);
@@ -83,7 +83,7 @@ contract Voucher is Ownable, IERC721Receiver {
     return true;
   }
 
-  function create(Vesting calldata vesting) public returns (uint256) {
+  function create(Vesting calldata vesting) public payable returns (uint256) {
     require(isQualifiedCreator(_msgSender(), vesting.balance), "Requester must approve sufficient amount to create voucher");
 
     // stake amount of token to own pool
@@ -153,8 +153,8 @@ contract Voucher is Ownable, IERC721Receiver {
     bytes32 scheduleKey = keccak256(SCHEDULE_KEY);
     bytes memory scheduleValue = abi.encode(vesting.schedules);
 
-    IDynamic(_dataRegistry).write(collection, tokenId, balanceKey, balanceValue);
-    IDynamic(_dataRegistry).write(collection, tokenId, scheduleKey, scheduleValue);
+    IDynamicV2(_dataRegistry).write(collection, tokenId, balanceKey, balanceValue);
+    IDynamicV2(_dataRegistry).write(collection, tokenId, scheduleKey, scheduleValue);
 
     // transfer voucher to requester
     IERC721(collection).transferFrom(address(this), _msgSender(), tokenId);
@@ -196,12 +196,12 @@ contract Voucher is Ownable, IERC721Receiver {
 
     // read voucher data from registry
     bytes32 balanceKey = keccak256(BALANCE_KEY);
-    bytes memory balanceValue = IDynamic(_dataRegistry).read(_nftCollection, tokenId, balanceKey);
+    bytes memory balanceValue = IDynamicV2(_dataRegistry).read(_nftCollection, tokenId, balanceKey);
     uint256 balance;
     (balance) = abi.decode(balanceValue, (uint256));
 
     bytes32 scheduleKey = keccak256(SCHEDULE_KEY);
-    bytes memory scheduleValue = IDynamic(_dataRegistry).read(_nftCollection, tokenId, scheduleKey);
+    bytes memory scheduleValue = IDynamicV2(_dataRegistry).read(_nftCollection, tokenId, scheduleKey);
     VestingSchedule[] memory schedules;
     (schedules) = abi.decode(scheduleValue, (VestingSchedule[]));
 
@@ -256,10 +256,10 @@ contract Voucher is Ownable, IERC721Receiver {
 
     // update voucher data: balance, schedules
     balanceValue = abi.encode(balance - claimableAmount);
-    IDynamic(_dataRegistry).write(_nftCollection, tokenId, balanceKey, balanceValue);
+    IDynamicV2(_dataRegistry).write(_nftCollection, tokenId, balanceKey, balanceValue);
 
     scheduleValue = abi.encode(schedules);
-    IDynamic(_dataRegistry).write(_nftCollection, tokenId, scheduleKey, scheduleValue);
+    IDynamicV2(_dataRegistry).write(_nftCollection, tokenId, scheduleKey, scheduleValue);
 
     // transfer erc20 token
     require(IERC20(_erc20Token).transfer(_msgSender(), claimableAmount), "Transfer ERC20 token claimable amount failed");

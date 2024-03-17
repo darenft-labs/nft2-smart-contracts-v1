@@ -10,24 +10,29 @@ import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
+import "./interfaces/IFactory.sol";
 import "./interfaces/IDerivedAccount.sol";
 import "./interfaces/tokenbound/IERC6551Account.sol";
-import "./interfaces/tokenbound/IERC6551Executable.sol";
 
-contract DerivedAccount is Initializable, IERC165, IERC1271, IERC6551Account, IERC6551Executable, IDerivedAccount {
+contract DerivedAccount is Initializable, IERC165, IERC1271, IERC6551Account, IDerivedAccount {
   uint8 private constant MAX_BATCH_SIZE = 10;
   uint256 public state;
+  address public factory;
 
   receive() external payable {}
 
-  function claimRoyalty(address requestToken, uint256 amount) external {
+  function initialize(address _factory) external initializer {
+    factory = _factory;
+  }
+
+  function claimRoyalty(address requestToken, uint256 amount) external payable {
     (uint256 chainId, address tokenContract, uint256 tokenId) = token();
     require(chainId == block.chainid, "ChainId MUST be valid");
 
     _claimRoyalty(tokenContract, tokenId, requestToken, amount);
   }
 
-  function claimRoyaltyBatch(address[] calldata requestTokens, uint256[] calldata amounts) external {
+  function claimRoyaltyBatch(address[] calldata requestTokens, uint256[] calldata amounts) external payable {
     require(requestTokens.length == amounts.length, "Input array MUST be the same length");
     require(requestTokens.length <= MAX_BATCH_SIZE, "Input array MUST be less than limit");
 
@@ -41,7 +46,7 @@ contract DerivedAccount is Initializable, IERC165, IERC1271, IERC6551Account, IE
     }
   }
 
-  function _claimRoyalty(address tokenContract, uint256 tokenId, address requestToken, uint256 amount) private {
+  function _claimRoyalty(address tokenContract, uint256 tokenId, address requestToken, uint256 amount) private {    
     (address receiver, uint256 royaltyAmount) = IERC2981(tokenContract).royaltyInfo(tokenId, amount);
     uint256 remaining = amount - royaltyAmount;
 
@@ -67,15 +72,6 @@ contract DerivedAccount is Initializable, IERC165, IERC1271, IERC6551Account, IE
 
     emit RoyaltyClaimed(receiver1, address(0), amount1);
     emit RoyaltyClaimed(receiver2, address(0), amount2);
-  }
-
-  function execute(address to, uint256 value, bytes calldata data, uint8 operation)
-    external
-    payable
-    virtual
-    returns (bytes memory result)
-  {
-    revert();
   }
 
   function isValidSigner(address signer, bytes calldata) external view virtual returns (bytes4) {
@@ -121,7 +117,6 @@ contract DerivedAccount is Initializable, IERC165, IERC1271, IERC6551Account, IE
   function supportsInterface(bytes4 interfaceId) external pure virtual returns (bool) {
     return interfaceId == type(IERC165).interfaceId
       || interfaceId == type(IERC6551Account).interfaceId
-      || interfaceId == type(IERC6551Executable).interfaceId
       || interfaceId == type(IDerivedAccount).interfaceId;
   }
 

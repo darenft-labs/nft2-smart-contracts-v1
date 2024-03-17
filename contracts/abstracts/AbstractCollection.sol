@@ -2,16 +2,32 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
-import "../interfaces/IInitializableCollection.sol";
 import "../helpers/DataStruct.sol";
 
-abstract contract AbstractCollection is IInitializableCollection, IERC2981 {
+abstract contract AbstractCollection is IERC2981 {
+  bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+  uint96 private constant MAXIMUM_ROYALTY_RATE = 10000;
+
+  address public factory;
   address internal _owner;
   uint96 internal _royaltyRate;
 
   bool public isSoulBound;
   FreeMintableKind public isFreeMintable;
   bool public isSemiTransferable;
+
+  modifier onFreemint {
+    require(isFreeMintable == FreeMintableKind.FREE_MINT_COMMUNITY 
+            || isFreeMintable == FreeMintableKind.FREE_MINT_WHITELIST, "Freemint MUST be enable");
+    _;
+  }
+
+  modifier onSemiTransferable {
+    require(isSemiTransferable, "SemiTransferable MUST be enable");
+    _;
+  }
+
+  function initialize(address owner, string calldata name, string calldata symbol, bytes calldata settings) external virtual;
 
   function _setSoulBound(bool enable) internal {
     isSoulBound = enable;
@@ -37,6 +53,6 @@ abstract contract AbstractCollection is IInitializableCollection, IERC2981 {
 
   // royalty denominator in terms of basis point
   function _feeDenominator() internal pure virtual returns (uint96) {
-    return 10000;
+    return MAXIMUM_ROYALTY_RATE;
   }
 }

@@ -14,14 +14,15 @@ import {
 describe("AddonsManager", function(){
   // fixtures  
   async function deployFixture() {
-    const { freeMintWhitelistFCFS, freeMintWhitelistFixedToken } = await loadFixture(deployStrategies);
+    const { freeMintWhitelistFCFS, freeMintWhitelistFixedToken, freeMintCommunity } = await loadFixture(deployStrategies);
 
     const { addOnsManager } = await loadFixture(deployManager);
 
     await addOnsManager.registerStrategy(freeMintWhitelistFCFS.target, AddonsKind.FREE_MINT_WHITELIST_FCFS);
     await addOnsManager.registerStrategy(freeMintWhitelistFixedToken, AddonsKind.FREE_MINT_WHITELIST_FIXED_TOKEN);
+    await addOnsManager.registerStrategy(freeMintCommunity, AddonsKind.FREE_MINT_COMMUNITY);
 
-    return { addOnsManager, freeMintWhitelistFCFS, freeMintWhitelistFixedToken };
+    return { addOnsManager, freeMintWhitelistFCFS, freeMintWhitelistFixedToken, freeMintCommunity };
   }
 
   async function deployManager() {
@@ -37,8 +38,9 @@ describe("AddonsManager", function(){
   async function deployStrategies() {
     const freeMintWhitelistFCFS = await ethers.deployContract("FreeMintWhitelistFCFSStrategy");
     const freeMintWhitelistFixedToken = await ethers.deployContract("FreeMintWhitelistFixedTokenStrategy");
+    const freeMintCommunity = await ethers.deployContract("FreeMintCommunityStrategy");
 
-    return { freeMintWhitelistFCFS, freeMintWhitelistFixedToken };
+    return { freeMintWhitelistFCFS, freeMintWhitelistFixedToken, freeMintCommunity };
   }
 
   describe("Deployment", function(){
@@ -56,6 +58,13 @@ describe("AddonsManager", function(){
       const freeMintWhitelistFCFSDummy = await ethers.deployContract("FreeMintWhitelistFCFSStrategy");
       await expect(addOnsManager.connect(account2).registerStrategy(freeMintWhitelistFCFSDummy.target, AddonsKind.FREE_MINT_WHITELIST_FCFS))
               .to.be.reverted;
+    });
+
+    it("Should register failed due to zero address", async function(){
+      const { addOnsManager, freeMintWhitelistFCFS } = await loadFixture(deployFixture);
+
+      await expect(addOnsManager.registerStrategy(ethers.ZeroAddress, AddonsKind.FREE_MINT_WHITELIST_FCFS))
+              .to.be.revertedWith("Strategy implementation MUST be valid contract address");
     });
 
     it("Should register failed due to duplicated", async function(){
@@ -89,10 +98,11 @@ describe("AddonsManager", function(){
     });
 
     it("Should lookup strategy by kind properly", async function(){
-      const { addOnsManager, freeMintWhitelistFCFS, freeMintWhitelistFixedToken } = await loadFixture(deployFixture);
+      const { addOnsManager, freeMintWhitelistFCFS, freeMintWhitelistFixedToken, freeMintCommunity } = await loadFixture(deployFixture);
 
       expect(await addOnsManager.strategyOfKind(AddonsKind.FREE_MINT_WHITELIST_FCFS)).to.equal(freeMintWhitelistFCFS.target);
       expect(await addOnsManager.strategyOfKind(AddonsKind.FREE_MINT_WHITELIST_FIXED_TOKEN)).to.equal(freeMintWhitelistFixedToken.target);
+      expect(await addOnsManager.strategyOfKind(AddonsKind.FREE_MINT_COMMUNITY)).to.equal(freeMintCommunity.target);
     });
   })
 })
