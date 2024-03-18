@@ -71,7 +71,7 @@ const config: HardhatUserConfig = {
     bnb_testnet: {
       url: "https://data-seed-prebsc-1-s1.bnbchain.org:8545",
       chainId: 97,
-      accounts: [privateKey1, privateKey2]
+      accounts: [privateKey1]
     },
   }
 }
