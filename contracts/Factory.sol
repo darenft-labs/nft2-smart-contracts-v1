@@ -10,7 +10,6 @@ import "erc6551/ERC6551Registry.sol";
 
 import "./interfaces/IFactory.sol";
 import "./interfaces/IDynamic.sol";
-import "./interfaces/IComposable.sol";
 import "./interfaces/IDerivable.sol";
 import "./interfaces/addons/IAddonsManager.sol";
 
