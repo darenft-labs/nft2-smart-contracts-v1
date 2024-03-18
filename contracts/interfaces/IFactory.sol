@@ -35,10 +35,17 @@ interface IFactory {
   event Fee(bytes32 action, uint256 fee);
 
   /**
-   * @dev create data registry v1
-   * @param dappURI dapp uri
+   * @dev create data registry v1 (deprecated)
+   * @param dappUri dapp uri
    */
-  function createDataRegistry(string calldata dappURI) external returns (address registry);
+  function createDataRegistry(string calldata dappUri) external returns (address registry);
+
+  /**
+   * @dev create data registry v2
+   * @param dappUri dapp uri
+   * @param settings dapp settings
+   */
+  function createDataRegistryV2(string calldata dappUri, DataRegistrySettings calldata settings) external returns (address registry);
 
   /**
    * @dev create ERC721 collection
@@ -72,12 +79,6 @@ interface IFactory {
   function dataRegistryOf(address dapp) external view returns (address);
 
   /**
-   * @dev lookup dapp uri
-   * @param dapp uri of dapp
-   */
-  function dappURI(address dapp) external view returns (string memory);
-
-  /**
    * @dev lookup collection
    * @param owner account address
    * @param name collection name
@@ -91,12 +92,4 @@ interface IFactory {
    * @param underlyingTokenId tokenId
    */
   function derivedAccountOf(address underlyingCollection, uint256 underlyingTokenId) external view returns (address);
-
-  /**
-   * @dev Returns fee of action in wei
-   * 
-   * @param action action kind
-   * @param times number of executions
-   */
-  function getFee(ProtocolAction action, uint256 times) external view returns (address, uint256);
 }
