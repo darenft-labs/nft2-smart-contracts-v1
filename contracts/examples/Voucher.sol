@@ -256,10 +256,22 @@ contract Voucher is Ownable, IERC721Receiver {
 
     // update voucher data: balance, schedules
     balanceValue = abi.encode(balance - claimableAmount);
-    IDynamicV2(_dataRegistry).write(_nftCollection, tokenId, balanceKey, balanceValue);
-
     scheduleValue = abi.encode(schedules);
-    IDynamicV2(_dataRegistry).write(_nftCollection, tokenId, scheduleKey, scheduleValue);
+
+    // write per single key
+    //IDynamicV2(_dataRegistry).write(_nftCollection, tokenId, balanceKey, balanceValue);
+    //IDynamicV2(_dataRegistry).write(_nftCollection, tokenId, scheduleKey, scheduleValue);
+
+    // write multiple keys for single NFT
+    bytes32[] memory keyHashes = new bytes32[](2);
+    keyHashes[0] = balanceKey;
+    keyHashes[1] = scheduleKey;
+
+    bytes[] memory values = new bytes[](2);
+    values[0] = balanceValue;
+    values[1] = scheduleValue;
+
+    DataRegistryV2(_dataRegistry).writeBatchForSingleNFT(_nftCollection, tokenId, keyHashes, values);
 
     // transfer erc20 token
     require(IERC20(_erc20Token).transfer(_msgSender(), claimableAmount), "Transfer ERC20 token claimable amount failed");
