@@ -81,22 +81,19 @@ const config: HardhatUserConfig = {
 ```bash
 $ IMPLEMENTATION=<kind> npx hardhat run ./scripts/deploy-implementation.ts --network <chain-name>
 ```
-> *IMPLEMENTATION is the number identified of implementation kind, which is*
+> *IMPLEMENTATION is the number kind, correspondingly:*
+>
 >   - 0: DataRegistry
 >   - 1: Collection
 >   - 2: DerivedAccount
 >   - 3: Collection721A
 >   - 4: DataRegistryV2
->   - 5: Deploy AddonsManager
->   - 6: Upgrade AddonsManager
->   - 7: Deploy & Register addons strategy
->
 > *--network can be omitted in case deploy in-memory*
 
-- Deploy AddonsManager
+- AddonsManager
 >   - Deploy AddonsManager
 ```bash
-$ IMPLEMENTATION=6 npx hardhat run scripts/deploy-implementation.ts
+$ IMPLEMENTATION=5 npx hardhat run scripts/deploy-implementation.ts
 ```
 
 >   - Upgrade AddonsManager
@@ -105,6 +102,8 @@ $ ADDONS_MANAGER=<address> \
 IMPLEMENTATION=6 npx hardhat run scripts/deploy-implementation.ts
 ```
 
+> *ADDONS_MANAGER is contract address, deployed in previous step.*
+
 >   - Deploy & register strategy
 ```bash
 $ ADDONS_MANAGER=<address> \
@@ -112,7 +111,10 @@ KIND=<addons-kind> \
 IMPLEMENTATION=7 npx hardhat run scripts/deploy-implementation.ts
 ```
 
->     addons-kind is one of
+> *ADDONS_MANAGER is contract address, deployed in previous step.*
+>
+> *KIND is addons kind, correspondingly:*
+>
 >     - 0: Freemint whitelist FCFS
 >     - 1: Freemint whitelist Fixed-token
 >     - 2: Freemint whitelist Community
@@ -128,6 +130,8 @@ DATA_REGISTRY_V2="<address>" \
 npx hardhat run scripts/deploy-factory.ts --network <chain-name>
 ```
 
+> *DATA_REGISTRY, COLLECTION, DERIVED_ACCOUNT, COLLECTION_721A, DATA_REGISTRY_V2 is implementation contract addresses, deployed in previous step.*
+
 - Config factory
 >   - Set implementation to factory
 ```bash
@@ -137,15 +141,18 @@ KIND=<implementation-kind> \
 IMPLEMENTATION=<new-implementation-address> \
 npx hardhat run scripts/upgrade-factory.ts --network <chain-name>
 ```
->     where KIND is implementation kind, defined above
+> *KIND is implementation kind, defined above*
 
 >   - Set AddonsManager
 ```bash
 $ FACTORY=<address> \
+ADDONS_MANAGER=<address> \
 ACTION=0 \
 npx hardhat run scripts/upgrade-factory.ts
 ```
 
+> *FACTORY is factory contract address, deployed in previous step.*
+> *ADDONS_MANAGER is contract address, deployed in previous step.*
 
 
 ## Verify contract
@@ -194,4 +201,4 @@ $ npx hardhat clean
 - Deployment is sometimes failed due to networks congestion, the solution is needing to wait for traffic restabilize and redeploy.
 
 ## License
-Copyright belongs to DareNFT - Alpha Waves PTE. LTD, 2023
+Copyright belongs to [DareNFT - Alpha Waves PTE. LTD](https://darenft.com/), 2023
