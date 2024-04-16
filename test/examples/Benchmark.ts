@@ -43,13 +43,18 @@ describe("Benchmark", function(){
     const [owner, account1, account2] = await ethers.getSigners();
 
     // deploy supplementary contracts
-    const { dataRegistry, nftCollection } = await loadFixture(
-      deployDataRegistryAndCollectionFromFactory
-    );
+    const { dataRegistry, nftCollection, factory, erc6551Impl } =
+      await loadFixture(deployDataRegistryAndCollectionFromFactory);
     const erc20Token = await ethers.deployContract("USDT", [owner.address]);
 
     // deploy voucher contract
-    const voucher = await ethers.deployContract("Voucher", [erc20Token.target, nftCollection.target, dataRegistry.target]);
+    const voucher = await ethers.deployContract("Voucher", [
+      erc20Token.target,
+      nftCollection.target,
+      dataRegistry.target,
+      factory.target,
+      erc6551Impl.target,
+    ]);
 
     // grant roles
     await nftCollection.grantRole(
@@ -71,6 +76,7 @@ describe("Benchmark", function(){
     const dataRegistryImpl = await ethers.deployContract("DataRegistryV2");
     const derivedAccountImpl = await ethers.deployContract("DerivedAccount");
     const erc721AImpl = await ethers.deployContract("Collection721A");
+    const erc6551Impl = await ethers.deployContract("ERC6551Account");
 
     const Factory = await ethers.getContractFactory("Factory");
     const factory = await upgrades.deployProxy(Factory, [
@@ -112,7 +118,7 @@ describe("Benchmark", function(){
       registryAddress
     );
 
-    return { dataRegistry, nftCollection };
+    return { dataRegistry, nftCollection, factory, erc6551Impl };
   }
 
   it("Should CREATE voucher with many schedules successfully", async function(){

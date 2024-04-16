@@ -9,11 +9,14 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "../interfaces/IDynamicV2.sol";
+import "../interfaces/tokenbound/IERC6551Registry.sol";
+
 import "../../contracts/Collection.sol";
 import "../../contracts/DataRegistryV2.sol";
+import "../../contracts/tokenbound/ERC6551Account.sol";
 
 contract Voucher is Ownable, IERC721Receiver {
-  event VoucherCreated(address collection, uint256 tokenId);
+  event VoucherCreated(address collection, uint256 tokenId, address tba);
   event BatchCreated(address collection, uint256 startId, uint256 endId);
 
   using Math for uint256;
@@ -39,6 +42,8 @@ contract Voucher is Ownable, IERC721Receiver {
   address private _erc20Token;
   address private _nftCollection;
   address private _dataRegistry;
+  address private _factory;
+  address private _tbaImplementation;
 
   // data schemas
   mapping (uint256 => Vesting) private _tokensVesting;
@@ -58,10 +63,12 @@ contract Voucher is Ownable, IERC721Receiver {
     VestingSchedule[] schedules;
   }
 
-  constructor(address erc20Token, address nftCollection, address dataRegistry) Ownable() {
+  constructor(address erc20Token, address nftCollection, address dataRegistry, address factory, address tbaImplementation) Ownable() {
     _erc20Token = erc20Token;
     _nftCollection = nftCollection;
     _dataRegistry = dataRegistry;
+    _factory = factory;
+    _tbaImplementation = tbaImplementation;
   }
 
   function onERC721Received(
@@ -83,21 +90,43 @@ contract Voucher is Ownable, IERC721Receiver {
     return true;
   }
 
-  function create(Vesting calldata vesting) public payable returns (uint256) {
+  function create(Vesting calldata vesting) public payable returns (uint256 tokenId, address tba) {
     require(isQualifiedCreator(_msgSender(), vesting.balance), "Requester must approve sufficient amount to create voucher");
 
     // stake amount of token to own pool
-    require(IERC20(_erc20Token).transferFrom(_msgSender(), address(this), vesting.balance), "Stake voucher balance failed");
+    IERC20(_erc20Token).transferFrom(_msgSender(), address(this), vesting.balance);
 
     // mint new voucher
-    uint256 tokenId = Collection(_nftCollection).safeMint(address(this));
+    tokenId = Collection(_nftCollection).safeMint(address(this));
+
+    // create TBA
+    bytes32 salt = keccak256(abi.encode(address(this), _nftCollection, tokenId));
+    tba = IERC6551Registry(_factory).createAccount(
+      _tbaImplementation,
+      salt,
+      block.chainid,
+      _nftCollection,
+      tokenId
+      );
 
     // write data voucher
     _saveVestingData(_nftCollection, tokenId, vesting);
 
     // emit events
-    emit VoucherCreated(_nftCollection, tokenId);
-    return tokenId;
+    emit VoucherCreated(_nftCollection, tokenId, tba);
+
+    return (tokenId, tba);
+  }
+
+  function tbaOfToken(uint256 tokenId) public view returns (address tba) {
+    bytes32 salt = keccak256(abi.encode(address(this), _nftCollection, tokenId));
+    return IERC6551Registry(_factory).account(
+      _tbaImplementation,
+      salt,
+      block.chainid,
+      _nftCollection,
+      tokenId
+    );
   }
 
   function createBatch(uint256 quantity, string[] calldata uris, Vesting calldata vesting) public returns (uint256 startId, uint256 endId) {
