@@ -1,5 +1,4 @@
 node_modules
-.env
 
 # Hardhat files
 /cache
@@ -14,7 +13,18 @@ node_modules
 /coverage.json
 
 # dotenv
-.env
+.env*
+!.env.example
+
 
 # flatten contracts
 flatten/*.sol
+
+# foundry
+/target
+out/
+out.json
+cache_forge
+
+# temp files
+.DS_Store

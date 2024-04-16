@@ -46,12 +46,18 @@ describe("Voucher", function(){
     const [owner, account1, account2] = await ethers.getSigners();
 
     // deploy supplementary contracts
-    const { dataRegistry, nftCollection } = await loadFixture(deployDataRegistryAndCollectionFromFactory);
+    const { dataRegistry, nftCollection, factory, erc6551Impl } = await loadFixture(deployDataRegistryAndCollectionFromFactory);
 
     const erc20Token = await ethers.deployContract("USDT", [owner.address]);
 
     // deploy voucher contract
-    const voucher = await ethers.deployContract("Voucher", [erc20Token.target, nftCollection.target, dataRegistry.target]);
+    const voucher = await ethers.deployContract("Voucher", [
+      erc20Token.target, 
+      nftCollection.target, 
+      dataRegistry.target,
+      factory.target,
+      erc6551Impl.target
+    ]);
 
     // grant roles
     await nftCollection.grantRole(await nftCollection.MINTER_ROLE(), voucher.target);
@@ -67,6 +73,7 @@ describe("Voucher", function(){
     const dataRegistryImpl = await ethers.deployContract("DataRegistryV2");
     const derivedAccountImpl = await ethers.deployContract("DerivedAccount");
     const erc721AImpl = await ethers.deployContract("Collection721A");
+    const erc6551Impl = await ethers.deployContract("ERC6551Account");
 
     const Factory = await ethers.getContractFactory("Factory");
     const factory = await upgrades.deployProxy(Factory, [
@@ -108,7 +115,7 @@ describe("Voucher", function(){
       registryAddress
     );
 
-    return { dataRegistry, nftCollection };
+    return { dataRegistry, nftCollection, factory, erc6551Impl };
   }
 
   async function createVoucherFixture(){
@@ -311,8 +318,9 @@ describe("Voucher", function(){
       // assertions
       await expect(voucher.connect(account1).create(vesting)).to.not.be.reverted;
 
-      expect(await nftCollection.ownerOf(ethers.getBigInt(0))).to.equal(account1.address);
+      expect(await nftCollection.ownerOf(0)).to.equal(account1.address);
       expect(await erc20Token.balanceOf(voucher.target)).to.equal(ethers.parseEther(amount));
+      expect(await voucher.tbaOfToken(0)).to.be.properAddress;
 
       // assertions voucher data: balance, schedules
       const abiCoder = new ethers.AbiCoder();
