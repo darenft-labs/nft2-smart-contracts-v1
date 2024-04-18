@@ -21,4 +21,11 @@ $ npx hardhat create --contract <voucher-address> \
 
 >   Factory address 0xf4943e8cC945071C778EE25ad0BE5857eD638556
 
->   ERC6551 implementation address 0xDd97713FC5Cf4b59eC602422a030896029F05Abd
+>   ERC6551 implementation address 0xFc1615AC9a96E42dd3B1C3d4205e326a40B1C197
+
+- AVAX mainnet
+
+>   Factory address 0x34A4ac15dcAA1f498ca405a4d6C3aEc8108600b8
+
+>   ERC6551 implementation address 0x23A170f47E77e3a9D2516f2fB16BBD9adb10b27D
+
