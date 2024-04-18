@@ -7,7 +7,6 @@ import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
 import { convertPercentageToBasisPoint, CollectionSettings, encodeCollectionSettings, FreeMintKind, DataRegistrySettings } from "../helpers/utils";
-import { token } from "../../typechain-types/@openzeppelin/contracts";
 
 export const LINEAR_VESTING_TYPE = 1;
 export const STAGED_VESTING_TYPE = 2;

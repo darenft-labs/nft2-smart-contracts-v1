@@ -3,12 +3,15 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/interfaces/IERC721Receiver.sol";
+import "@openzeppelin/contracts/interfaces/IERC1155Receiver.sol";
+
 import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "../interfaces/tokenbound/IERC6551Account.sol";
 import "../interfaces/tokenbound/IERC6551Executable.sol";
 
-contract ERC6551Account is IERC165, IERC1271, IERC6551Account, IERC6551Executable {
+contract ERC6551Account is IERC165, IERC1271, IERC6551Account, IERC6551Executable, IERC721Receiver, IERC1155Receiver {
     uint256 public state;
 
     receive() external payable {}
@@ -57,10 +60,41 @@ contract ERC6551Account is IERC165, IERC1271, IERC6551Account, IERC6551Executabl
         return bytes4(0);
     }
 
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) public override returns (bytes4){
+      return IERC721Receiver.onERC721Received.selector;
+    }
+
+    function onERC1155Received(
+        address operator,
+        address from,
+        uint256 id,
+        uint256 value,
+        bytes calldata data
+    ) external returns (bytes4) {
+      return IERC1155Receiver.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(
+        address operator,
+        address from,
+        uint256[] calldata ids,
+        uint256[] calldata values,
+        bytes calldata data
+    ) external returns (bytes4) {
+      return IERC1155Receiver.onERC1155BatchReceived.selector;
+    }
+
     function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
         return interfaceId == type(IERC165).interfaceId
             || interfaceId == type(IERC6551Account).interfaceId
-            || interfaceId == type(IERC6551Executable).interfaceId;
+            || interfaceId == type(IERC6551Executable).interfaceId
+            || interfaceId == type(IERC721Receiver).interfaceId
+            || interfaceId == type(IERC1155Receiver).interfaceId;
     }
 
     function token() public view virtual returns (uint256, address, uint256) {
