@@ -18,10 +18,11 @@ import "./interfaces/ISemiTransferable.sol";
 contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgradeable, ISemiTransferable {
   uint8 private constant MAX_BATCH_SIZE = 100;
 
-  uint256 private _nextTokenId;
+  uint256 public _nextTokenId;
   mapping (uint256 tokenId => string) private _tokenUris;
-  mapping (uint256 tokenId => RoyaltySettings rSettings) private _royaltySettings;
-  mapping (uint256 tokenId => bool) private _locks;
+  mapping (uint256 tokenId => RoyaltySettings rSettings) private _royaltySettings;  
+  mapping (uint256 tokenId => LockingSettings lSettings) private _locks;
+
   bytes32 public uriMerkleRoot;
 
   function initialize(address owner, string calldata name, string calldata symbol, bytes calldata settings) external override initializer {
@@ -46,10 +47,9 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
     _grantRole(MINTER_ROLE, owner);
   }
 
-  function safeMint(address to) external onlyRole(MINTER_ROLE) returns (uint256) {
-    uint256 tokenId = _nextTokenId++;
+  function safeMint(address to) external onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
+    tokenId = _nextTokenId++;
     _safeMint(to, tokenId);
-    return tokenId;
   }
 
   function safeMintBatch(address to, uint256 quantity) external onlyRole(MINTER_ROLE) {
@@ -125,10 +125,13 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   function _beforeTokenTransfer(address from, address to, uint256 firstTokenId, uint256 batchSize) internal view override {
     if (from != address(0) && to != address(0)) {
       assert(!isSoulBound);
-      uint256 j;
-      while (j < batchSize) {
-        assert(!_locks[firstTokenId + j]);
-        j++;
+
+      if(isSemiTransferable){
+        uint256 j;
+        while (j < batchSize) {        
+          assert(!this.isLocked(firstTokenId = j));
+          j++;
+        }
       }
     }    
   }
@@ -156,22 +159,38 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   function lock(uint256 tokenId) external onSemiTransferable {
     require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
 
-    _locks[tokenId] = true;
+    _locks[tokenId] = LockingSettings(LockingKind.PERPETUAL, block.timestamp, 0);
 
     emit Lock(_msgSender(), tokenId);
+  }
+
+  function lockWithTime(uint256 tokenId, uint256 endTime) external onSemiTransferable {
+    require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
+    require(block.timestamp < endTime, "End time MUST be valid");
+
+    _locks[tokenId] = LockingSettings(LockingKind.FIXED_TIME, block.timestamp, endTime);
+
+    emit LockWithTime(_msgSender(), tokenId, block.timestamp, endTime);
   }
 
   function unlock(uint256 tokenId) external onSemiTransferable {
     require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
 
-    _locks[tokenId] = false;
+    delete _locks[tokenId];
 
     emit Unlock(_msgSender(), tokenId);
   }
 
   function isLocked(uint256 tokenId) external view returns (bool) {
     assert(isSemiTransferable);
-    return _locks[tokenId];
+
+    if (_locks[tokenId].kind == LockingKind.PERPETUAL) {
+      return block.timestamp >= _locks[tokenId].startTime;
+    } else if (_locks[tokenId].kind == LockingKind.FIXED_TIME) {
+      return block.timestamp >= _locks[tokenId].startTime && block.timestamp <= _locks[tokenId].endTime;
+    }
+
+    return false;
   }
 
   // ====================================================

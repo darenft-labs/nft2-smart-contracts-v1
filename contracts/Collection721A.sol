@@ -9,7 +9,7 @@ import "./abstracts/AbstractCollection.sol";
 import "./interfaces/IFactory.sol";
 import "./interfaces/ISemiTransferable.sol";
 
-contract Collection721A is AccessControlUpgradeable, AbstractCollection, ERC721AUpgradeable, ISemiTransferable  {
+contract Collection721A is AccessControlUpgradeable, AbstractCollection, ERC721AUpgradeable  {
   uint8 private constant FREE_MINT_QUANTITY = 1;
 
   mapping (uint256 tokenId => bool) private _locks;
@@ -64,36 +64,7 @@ contract Collection721A is AccessControlUpgradeable, AbstractCollection, ERC721A
   ) internal view override {
     if (from != address(0) && to != address(0)) {
       assert(!isSoulBound);
-      uint256 j;
-      while (j < quantity) {
-        assert(!_locks[startTokenId + j]);
-        j++;
-      }
     } 
-  }
-
-  // ====================================================
-  //                    SEMI-TRANSFERABLE
-  // ====================================================
-  function lock(uint256 tokenId) external onSemiTransferable {
-    require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
-
-    _locks[tokenId] = true;
-
-    emit Lock(_msgSender(), tokenId);
-  }
-
-  function unlock(uint256 tokenId) external onSemiTransferable {
-    require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
-
-    _locks[tokenId] = false;
-
-    emit Unlock(_msgSender(), tokenId);
-  }
-
-  function isLocked(uint256 tokenId) external view returns (bool) {
-    assert(isSemiTransferable);
-    return _locks[tokenId];
   }
 
   // ====================================================
@@ -107,7 +78,6 @@ contract Collection721A is AccessControlUpgradeable, AbstractCollection, ERC721A
   {
       return 
         super.supportsInterface(interfaceId) ||
-        interfaceId == type(IERC2981).interfaceId ||
-        interfaceId == type(ISemiTransferable).interfaceId;
+        interfaceId == type(IERC2981).interfaceId;
   }
 }

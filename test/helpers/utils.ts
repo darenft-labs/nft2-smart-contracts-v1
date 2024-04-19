@@ -54,6 +54,7 @@ const IFREEMINTABLE_ABI = [
 
 const ISEMITRANSFERABLE_ABI = [
   "lock(uint256)",
+  "lockWithTime(uint256,uint256)",
   "unlock(uint256)",
   "isLocked(uint256)",
 ];
