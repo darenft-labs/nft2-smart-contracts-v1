@@ -536,6 +536,159 @@ describe("Collection", function(){
       });
     });
 
+    describe("LockWithTime", function(){
+      it("Should lockWithTime reverted should semi-transferable addons is disable", async function(){
+        const {collection, owner, account2} = await loadFixture(deployCollection);
+  
+        let settings : string = encodeCollectionSettings({
+          royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
+          isSoulBound: false,
+          isFreeMintable: FreeMintKind.NON_FREE_MINT,
+          isSemiTransferable: false,
+        });
+        await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
+
+        await expect(collection.safeMint(owner.address)).to.not.be.reverted;
+        const tokenId = 0;
+
+        const endTime = await time.latest() + 7*24*3600;
+
+        await expect(collection.lockWithTime(tokenId, endTime)).to.be.reverted;
+      });
+
+      it("Should lockWithTime reverted due to illegitimate sender", async function(){
+        const {collection, owner, account2} = await loadFixture(deployCollection);
+  
+        let settings : string = encodeCollectionSettings({
+          royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
+          isSoulBound: false,
+          isFreeMintable: FreeMintKind.NON_FREE_MINT,
+          isSemiTransferable: true,
+        });
+        await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
+  
+        await expect(collection.safeMint(owner.address)).to.not.be.reverted;
+        const tokenId = 0;
+        expect(await collection.ownerOf(tokenId)).to.equal(owner.address);
+        
+        const endTime = await time.latest() + 7*24*3600;
+        await expect(collection.connect(account2).lockWithTime(tokenId, endTime))
+                .to.be.revertedWith("Sender MUST be owner of token");
+      });
+
+      it("Should lockWithTime reverted due to invalid time range", async function(){
+        const {collection, owner, account2} = await loadFixture(deployCollection);
+  
+        let settings : string = encodeCollectionSettings({
+          royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
+          isSoulBound: false,
+          isFreeMintable: FreeMintKind.NON_FREE_MINT,
+          isSemiTransferable: true,
+        });
+        await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
+  
+        await expect(collection.safeMint(owner.address)).to.not.be.reverted;
+        const tokenId = 0;
+        expect(await collection.ownerOf(tokenId)).to.equal(owner.address);
+        
+        const endTime = await time.latest() + 7*24*3600;
+        await expect(collection.connect(account2).lockWithTime(tokenId, await time.latest() - 7*24*3600))
+                .to.be.revertedWith("Sender MUST be owner of token");
+      });
+
+      it("Should lockWithTime successfully", async function(){
+        const {collection, owner, account2} = await loadFixture(deployCollection);
+  
+        let settings : string = encodeCollectionSettings({
+          royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
+          isSoulBound: false,
+          isFreeMintable: FreeMintKind.NON_FREE_MINT,
+          isSemiTransferable: true,
+        });
+        await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
+  
+        await expect(collection.safeMint(account2.address)).to.not.be.reverted;
+        const tokenId = 0;
+        expect(await collection.ownerOf(tokenId)).to.equal(account2.address);
+        
+        const endTime = await time.latest() + 7*24*3600;
+        await expect(collection.connect(account2).lockWithTime(tokenId, endTime)).to.not.be.reverted;
+      });
+
+      it("Should lockWithTime emits LockWithTime event", async function(){
+        const {collection, owner, account2} = await loadFixture(deployCollection);
+  
+        let settings : string = encodeCollectionSettings({
+          royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
+          isSoulBound: false,
+          isFreeMintable: FreeMintKind.NON_FREE_MINT,
+          isSemiTransferable: true,
+        });
+        await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
+  
+        await expect(collection.safeMint(account2.address)).to.not.be.reverted;
+        const tokenId = 0;
+        expect(await collection.ownerOf(tokenId)).to.equal(account2.address);
+        
+        const endTime = await time.latest() + 7*24*3600;
+        await expect(collection.connect(account2).lockWithTime(tokenId, endTime))
+                  .to.emit(collection, "LockWithTime")
+                  .withArgs(account2.address, 0, anyValue, endTime);
+      });
+
+      it("Should lockWithTime works properly", async function(){
+        const {collection, owner, account2, account3} = await loadFixture(deployCollection);
+  
+        let settings : string = encodeCollectionSettings({
+          royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
+          isSoulBound: false,
+          isFreeMintable: FreeMintKind.NON_FREE_MINT,
+          isSemiTransferable: true,
+        });
+        await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
+  
+        await expect(collection.safeMint(account2.address)).to.not.be.reverted;
+        const tokenId = 0;
+        expect(await collection.ownerOf(tokenId)).to.equal(account2.address);
+        
+        const startTime = await time.latest() + 24*3600;
+        const endTime = await time.latest() + 7*24*3600;
+
+        await expect(collection.connect(account2).lockWithTime(tokenId, endTime)).to.not.reverted;
+
+        await expect(collection.connect(account2).transferFrom(account2.address, account3.address, tokenId)).to.be.reverted;
+
+        await time.increase(15*24*3600);
+        await expect(collection.connect(account2).transferFrom(account2.address, account3.address, tokenId)).to.not.be.reverted;
+        expect(await collection.ownerOf(tokenId)).to.equal(account3.address);
+      });
+
+      it("Should isLocked works properly upon locking successfully", async function(){
+        const {collection, owner, account2, account3} = await loadFixture(deployCollection);
+  
+        let settings : string = encodeCollectionSettings({
+          royaltyRate: convertPercentageToBasisPoint(ROYALTY_RATE),
+          isSoulBound: false,
+          isFreeMintable: FreeMintKind.NON_FREE_MINT,
+          isSemiTransferable: true,
+        });
+        await collection.initialize(owner.address, COLLECTION_NAME, COLLECTION_SYMBOL, settings);
+  
+        await expect(collection.safeMint(account2.address)).to.not.be.reverted;
+        const tokenId = 0;
+        expect(await collection.ownerOf(tokenId)).to.equal(account2.address);
+        
+        const endTime = await time.latest() + 7*24*3600;
+
+        await expect(collection.connect(account2).lockWithTime(tokenId, endTime)).to.not.reverted;
+
+        expect(await collection.isLocked(tokenId)).to.equal(true);
+
+        await time.increase(15*24*3600);
+        expect(await collection.isLocked(tokenId)).to.equal(false);
+      });
+    });
+
     describe("Unlock", function(){
       it("Should unlock reverted due to illegitimate sender", async function(){
         const {collection, owner, account2} = await loadFixture(deployCollection);
@@ -573,6 +726,7 @@ describe("Collection", function(){
         
         await expect(collection.lock(tokenId)).to.not.be.reverted;
         await expect(collection.unlock(tokenId)).to.not.be.reverted;
+
         expect(await collection.isLocked(tokenId)).to.equal(false);
       });
 

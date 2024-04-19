@@ -25,6 +25,9 @@ const ETH_FEE = ethers.parseEther("1");
 const ERC20_FEE = ethers.parseEther("1000");
 const LAND_FEE = ethers.parseEther("0.1");
 
+const ERC1155_URI = "ipfs://foo.bar";
+const ERC1155_AMOUNT = ethers.parseEther("1");
+
 describe("EvolveLand", function(){
   async function deployLandFixture() {
     const [ owner ] = await ethers.getSigners();
@@ -81,6 +84,13 @@ describe("EvolveLand", function(){
 
     const erc20 = await ethers.deployContract("USDT", [owner.address]);
 
+    const erc1155Proxy = await upgrades.deployProxy(await ethers.getContractFactory("Collection1155"),[
+      owner.address,
+      ERC1155_URI,
+    ]);
+
+    const erc1155 = await ethers.getContractAt("Collection1155", erc1155Proxy.target);
+
     const evolveLand = await ethers.deployContract("EvolveLand", [
       landCollection.target,
       ETH_FEE,
@@ -93,34 +103,38 @@ describe("EvolveLand", function(){
     // grant roles
     await landCollection.grantRole(await landCollection.MINTER_ROLE(), evolveLand.target);
 
-    return { evolveLand, landCollection, nftCollection, erc20 };
+    return { evolveLand, landCollection, nftCollection, erc20, erc1155 };
   }
 
   async function buyLandFixture() {
     const [ owner, account1 ] = await ethers.getSigners();
 
-    const { evolveLand, landCollection, nftCollection, erc20 } = await loadFixture(deployLandFixture);
+    const { evolveLand, landCollection, nftCollection, erc20, erc1155 } = await loadFixture(deployLandFixture);
 
     await evolveLand.connect(account1).buyLand({value: LAND_FEE});
 
-    return { evolveLand, landCollection, nftCollection, erc20 };
+    return { evolveLand, landCollection, nftCollection, erc20, erc1155 };
   }
 
   async function mintNFTFixture() {
     const [ owner, account1, account2 ] = await ethers.getSigners();
 
-    const { evolveLand, landCollection, nftCollection, erc20 } = await loadFixture(buyLandFixture);
+    const { evolveLand, landCollection, nftCollection, erc20, erc1155 } = await loadFixture(buyLandFixture);
 
+    // mint erc721
     await nftCollection.safeMint(account2);
     await nftCollection.safeMint(account2);
 
-    return { evolveLand, landCollection, nftCollection, erc20 };
+    // mint erc1155
+    await erc1155.mint(account2, ERC1155_AMOUNT);
+
+    return { evolveLand, landCollection, nftCollection, erc20, erc1155 };
   }
 
   async function evolveNFTFixture() {
     const [ owner, account1, account2 ] = await ethers.getSigners();
 
-    const { evolveLand, landCollection, nftCollection, erc20 } = await loadFixture(mintNFTFixture);
+    const { evolveLand, landCollection, nftCollection, erc20, erc1155 } = await loadFixture(mintNFTFixture);
 
     // evolve token 0
     await nftCollection.connect(account2).approve(evolveLand.target, 0);
@@ -132,7 +146,7 @@ describe("EvolveLand", function(){
     await nftCollection.connect(account2).approve(evolveLand.target, 1);
     await evolveLand.connect(account2).evolveWithERC20(0, nftCollection.target, 1);
 
-    return { evolveLand, landCollection, nftCollection, erc20 };
+    return { evolveLand, landCollection, nftCollection, erc20, erc1155 };
   }
 
   it("Should deploy successfully", async function(){
@@ -298,6 +312,29 @@ describe("EvolveLand", function(){
     await expect(tba.connect(account1).execute(nftCollection.target, 0, callData, 0)).to.not.be.reverted;
 
     expect(await nftCollection.ownerOf(0)).to.equal(account1.address);
+  });
+
+  it("Should withdraw ERC1155 from TBA successfully", async function(){
+    const [ owner, account1, account2 ] = await ethers.getSigners();
+
+    const { evolveLand, landCollection, nftCollection, erc20, erc1155 } = await loadFixture(evolveNFTFixture);
+
+    const tba = await ethers.getContractAt("ERC6551Account", await evolveLand.tbaOfLand(0));
+
+    // transfer erc1155 to tba
+    await expect(erc1155.connect(account2).safeTransferFrom(account2.address, tba.target, 0, ERC1155_AMOUNT, "0x")).to.not.be.reverted;
+
+    // before
+    expect(await erc1155.balanceOf(account1.address, 0)).to.equal(0);
+
+    const abi = ["function safeTransferFrom(address from, address to, uint256 tokenId, uint256 amount, bytes data)"];
+    const inf = ethers.Interface.from(abi);
+    const callData = inf.encodeFunctionData("safeTransferFrom", [tba.target, account1.address, 0, ERC1155_AMOUNT, "0x"]);
+
+    await expect(tba.connect(account1).execute(erc1155.target, 0, callData, 0)).to.not.be.reverted;
+
+    // after
+    expect(await erc1155.balanceOf(account1.address, 0)).to.equal(ERC1155_AMOUNT);
   });
 
 })

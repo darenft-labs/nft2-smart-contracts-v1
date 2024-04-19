@@ -19,6 +19,12 @@ enum ProtocolAction {
   CLAIM_DERIVED_ROYALTY
 }
 
+enum LockingKind {
+  UNLOCKING,
+  PERPETUAL,
+  FIXED_TIME
+}
+
 struct CollectionSettings {
   uint96 royaltyRate;
   bool isSoulBound;
@@ -59,4 +65,10 @@ struct FreemintCampaignSettings {
   uint256 endTime;
   uint256 fee;
   address feeReceiver;
+}
+
+struct LockingSettings {
+  LockingKind kind;
+  uint256 startTime;
+  uint256 endTime;
 }
