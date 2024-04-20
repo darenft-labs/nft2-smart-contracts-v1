@@ -147,6 +147,12 @@ export enum ProtocolAction {
   CLAIM_DERIVED_ROYALTY
 }
 
+export enum LockingKind {
+  UNLOCKING,
+  PERPETUAL,
+  FIXED_TIME
+}
+
 export type DataRegistrySettings = {
   disableComposable: boolean;
   disableDerivable: boolean;

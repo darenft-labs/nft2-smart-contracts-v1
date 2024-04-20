@@ -21,7 +21,7 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   uint256 public _nextTokenId;
   mapping (uint256 tokenId => string) private _tokenUris;
   mapping (uint256 tokenId => RoyaltySettings rSettings) private _royaltySettings;  
-  mapping (uint256 tokenId => LockingSettings lSettings) private _locks;
+  mapping (uint256 tokenId => LockingSettings lSettings) public locks;
 
   bytes32 public uriMerkleRoot;
 
@@ -129,7 +129,7 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
       if(isSemiTransferable){
         uint256 j;
         while (j < batchSize) {        
-          assert(!this.isLocked(firstTokenId = j));
+          assert(!this.isLocked(firstTokenId + j));
           j++;
         }
       }
@@ -158,8 +158,9 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   // ====================================================
   function lock(uint256 tokenId) external onSemiTransferable {
     require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
+    require(locks[tokenId].kind != LockingKind.PERPETUAL, "Token is locked perpetually already");
 
-    _locks[tokenId] = LockingSettings(LockingKind.PERPETUAL, block.timestamp, 0);
+    locks[tokenId] = LockingSettings(LockingKind.PERPETUAL, block.timestamp, 0);
 
     emit Lock(_msgSender(), tokenId);
   }
@@ -167,27 +168,31 @@ contract Collection is AccessControlUpgradeable, AbstractCollection, ERC721Upgra
   function lockWithTime(uint256 tokenId, uint256 endTime) external onSemiTransferable {
     require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
     require(block.timestamp < endTime, "End time MUST be valid");
+    require(locks[tokenId].kind != LockingKind.PERPETUAL, "Token is locking perpetually");
 
-    _locks[tokenId] = LockingSettings(LockingKind.FIXED_TIME, block.timestamp, endTime);
+    if (locks[tokenId].kind == LockingKind.FIXED_TIME) {
+      require(block.timestamp > locks[tokenId].endTime, "Token locking fixed time not yet ended");
+    }
+
+    locks[tokenId] = LockingSettings(LockingKind.FIXED_TIME, block.timestamp, endTime);
 
     emit LockWithTime(_msgSender(), tokenId, block.timestamp, endTime);
   }
 
   function unlock(uint256 tokenId) external onSemiTransferable {
     require(ownerOf(tokenId) == _msgSender(), "Sender MUST be owner of token");
+    require(locks[tokenId].kind == LockingKind.PERPETUAL, "Token MUST be locking perpetually");
 
-    delete _locks[tokenId];
+    delete locks[tokenId];
 
     emit Unlock(_msgSender(), tokenId);
   }
 
-  function isLocked(uint256 tokenId) external view returns (bool) {
-    assert(isSemiTransferable);
-
-    if (_locks[tokenId].kind == LockingKind.PERPETUAL) {
-      return block.timestamp >= _locks[tokenId].startTime;
-    } else if (_locks[tokenId].kind == LockingKind.FIXED_TIME) {
-      return block.timestamp >= _locks[tokenId].startTime && block.timestamp <= _locks[tokenId].endTime;
+  function isLocked(uint256 tokenId) external view onSemiTransferable returns (bool) {
+    if (locks[tokenId].kind == LockingKind.PERPETUAL) {
+      return block.timestamp >= locks[tokenId].startTime;
+    } else if (locks[tokenId].kind == LockingKind.FIXED_TIME) {
+      return block.timestamp >= locks[tokenId].startTime && block.timestamp <= locks[tokenId].endTime;
     }
 
     return false;
