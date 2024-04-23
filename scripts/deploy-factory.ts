@@ -2,10 +2,6 @@ import { ethers, upgrades } from "hardhat";
 import { ADDRESS_LENGTH } from "./helper";
 
 async function main() {
-  if (process.env.DATA_REGISTRY == undefined || process.env.DATA_REGISTRY.length != ADDRESS_LENGTH) {
-    throw new Error("Missing argument: DATA_REGISTRY...");
-  }
-
   if (process.env.COLLECTION == undefined || process.env.COLLECTION.length != ADDRESS_LENGTH) {
     throw new Error("Missing argument: COLLECTION...");
   }
@@ -24,8 +20,9 @@ async function main() {
 
   const [owner] = await ethers.getSigners();
   const Factory = await ethers.getContractFactory("Factory");
+  // data registry V1 is deprecated, thus no need to initialize with factory
   const factory = await upgrades.deployProxy(Factory, [
-                                  process.env.DATA_REGISTRY, 
+                                  ethers.ZeroAddress,
                                   process.env.COLLECTION, 
                                   process.env.DERIVED_ACCOUNT, 
                                   process.env.COLLECTION_721A,

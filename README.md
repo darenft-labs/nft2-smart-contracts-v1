@@ -122,15 +122,14 @@ IMPLEMENTATION=7 npx hardhat run scripts/deploy-implementation.ts
 
 - Deploy factory
 ```bash
-$ DATA_REGISTRY="<address>" \
-COLLECTION="<address>" \
+$ COLLECTION="<address>" \
 DERIVED_ACCOUNT="<address>" \
 COLLECTION_721A="<address>" \
 DATA_REGISTRY_V2="<address>" \
 npx hardhat run scripts/deploy-factory.ts --network <chain-name>
 ```
 
-> *DATA_REGISTRY, COLLECTION, DERIVED_ACCOUNT, COLLECTION_721A, DATA_REGISTRY_V2 is implementation contract addresses, deployed in previous step.*
+> *COLLECTION, DERIVED_ACCOUNT, COLLECTION_721A, DATA_REGISTRY_V2 is implementation contract addresses, deployed in previous step.*
 
 - Config factory
 >   - Set implementation to factory
