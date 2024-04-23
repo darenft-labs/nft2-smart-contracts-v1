@@ -29,3 +29,15 @@ $ npx hardhat create --contract <voucher-address> \
 
 >   ERC6551 implementation address 0x23A170f47E77e3a9D2516f2fB16BBD9adb10b27D
 
+- BNB testnet
+
+>   Factory address 0x702067e6010E48f0eEf11c1E06f06aaDb04734e2
+
+>   ERC6551 implementation address 0x43374E79b833634735309118B93F7716A8b2085c
+
+- BNB mainnet
+
+>   Factory address 0x75fc4ABf45d38176544833164e4E870B1A5E3103
+
+>   ERC6551 implementation address 0x751Ac0dc32234A1a42DE9c5F6C02deb46A3fa4d8
+

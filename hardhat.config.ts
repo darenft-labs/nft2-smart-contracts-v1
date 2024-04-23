@@ -40,6 +40,12 @@ const config: HardhatUserConfig = {
       gasPrice: 10000000000,
       accounts: [privateKey1]
     },
+    bnb: {
+      url: "https://bsc-dataseed.bnbchain.org/",
+      chainId: 56,
+      gasPrice: 20000000000,
+      accounts: [privateKey1]
+    },
     klaytn_testnet: {
       url: "https://api.baobab.klaytn.net:8651",
       chainId: 1001,      
@@ -51,14 +57,12 @@ const config: HardhatUserConfig = {
       accounts: [privateKey1]    
     },
   },
-  etherscan: {
-    // Your API key for BSCscan
-    // Obtain one at https://bscscan.com/
-    //apiKey: bscScanApiKey
+  etherscan: {    
     apiKey: {
-      avalanche: "snowtrace",
+      avalanche: "snowtrace", // apiKey is not required, just set a placeholder
       avax_fuji: "snowtrace", // apiKey is not required, just set a placeholder
-      bscTestnet: bscScanApiKey,
+      bscTestnet: bscScanApiKey,  // obtain one at https://bscscan.com/
+      bsc: bscScanApiKey,  // obtain one at https://bscscan.com/
     },
     customChains: [
       {
