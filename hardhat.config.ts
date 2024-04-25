@@ -37,13 +37,11 @@ const config: HardhatUserConfig = {
     bnb_testnet: {
       url: "https://data-seed-prebsc-1-s2.bnbchain.org:8545/",
       chainId: 97,
-      gasPrice: 10000000000,
       accounts: [privateKey1]
     },
     bnb: {
       url: "https://bsc-dataseed.bnbchain.org/",
       chainId: 56,
-      gasPrice: 20000000000,
       accounts: [privateKey1]
     },
     klaytn_testnet: {
